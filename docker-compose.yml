@@ -17,6 +17,21 @@ services:
     ports:
       - "8000:8000"  # If you have a web interface
 
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/app
+      - ./cache:/app/cache
+    env_file:
+      - .env
+    depends_on:
+      - db
+    networks:
+      - trailblaze-network
+    command: ["pytest", "-xvs"]
+
   db:
     image: postgres:14-alpine
     volumes:
@@ -28,7 +43,7 @@ services:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_DB=${DB_NAME}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
       - trailblaze-network
     healthcheck:

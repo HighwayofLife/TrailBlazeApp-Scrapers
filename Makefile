@@ -1,4 +1,4 @@
-.PHONY: build up down restart test test-dev format lint logs clean update-deps init setup-reports setup help
+.PHONY: build up down restart test test-dev format lint logs clean update-deps init setup-reports setup help test-docker test-docker-dev test-docker-cov
 
 # Colors for terminal output
 BLUE=\033[0;34m
@@ -53,6 +53,25 @@ test-dev: ## Run tests in development mode (with detailed output)
 	@echo "${YELLOW}Running tests in development mode...${NC}"
 	docker-compose run --rm app python -m pytest -v
 	@echo "${GREEN}✓ Tests completed${NC}"
+
+# Run tests in the test container
+test-docker: ## Run tests in the dedicated test container (following TDD principles)
+	@echo "${YELLOW}Running tests in dedicated test container...${NC}"
+	docker-compose run --rm test python -m pytest
+	@echo "${GREEN}✓ Tests completed${NC}"
+
+# Run tests in the test container with detailed output
+test-docker-dev: ## Run tests in the dedicated test container with detailed output (following TDD principles)
+	@echo "${YELLOW}Running tests in dedicated test container (development mode)...${NC}"
+	docker-compose run --rm test python -m pytest -v
+	@echo "${GREEN}✓ Tests completed${NC}"
+
+# Run tests with coverage report in test container
+test-docker-cov: ## Run tests with coverage report in the dedicated test container
+	@echo "${YELLOW}Running tests with coverage in dedicated test container...${NC}"
+	docker-compose run --rm test python -m pytest --cov=app --cov-report=term --cov-report=html
+	@echo "${GREEN}✓ Tests with coverage completed${NC}"
+	@echo "${BLUE}ℹ Coverage report available in htmlcov/index.html${NC}"
 
 # Format code
 format: ## Format code with Black
