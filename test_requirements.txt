@@ -1,0 +1,19 @@
+# Test framework dependencies
+pytest==8.3.5
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+pytest-html==4.1.1
+pytest-metadata==3.1.1
+pytest-xdist==3.6.1
+coverage==7.7.0
+execnet==2.1.1
+iniconfig==2.1.0
+
+# Code quality tools
+black==25.1.0
+flake8==7.1.2
+pycodestyle==2.12.1
+pyflakes==3.2.0
+mccabe==0.7.0
+mypy-extensions==1.0.0
+pathspec==0.12.1
