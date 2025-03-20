@@ -75,13 +75,13 @@ class DatabaseManager:
             self._update_event(event_data)
             if self.scraper: # Check if scraper is provided
                 self.scraper.metrics_manager.increment('database_updates') # Increment metric
-            self.logger.info(f"Updated event: {source} - {ride_id}", emoji=":repeat_button:") # Use logging_manager
+            self.logger.info(f"Updated event: {source} - {ride_id}") # Use logging_manager
             return True
         else:
             self._insert_event(event_data)
             if self.scraper: # Check if scraper is provided
                 self.scraper.metrics_manager.increment('database_inserts') # Increment metric
-            self.logger.info(f"Inserted new event: {source} - {ride_id}", emoji=":heavy_plus_sign:") # Use logging_manager
+            self.logger.info(f"Inserted new event: {source} - {ride_id}") # Use logging_manager
             return True
 
     def _event_exists(self, source: str, ride_id: str) -> bool:
