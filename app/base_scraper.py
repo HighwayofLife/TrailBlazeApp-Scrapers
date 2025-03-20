@@ -2,11 +2,14 @@
 
 import abc
 import requests
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
+from bs4 import BeautifulSoup
 
-from app.logging_manager import get_logger
+from app.logging_manager import get_logger, LoggingManager
 from app.metrics_manager import MetricsManager
 from app.cache import Cache
+from app.exceptions import HTMLDownloadError, DataExtractionError, ValidationError
+from app.models import EventDataModel
 
 
 class BaseScraper(abc.ABC):
@@ -27,10 +30,9 @@ class BaseScraper(abc.ABC):
             cache_ttl (int): Cache time-to-live in seconds (default: 86400 (24 hours))
         """
         self.source_name = source_name
-        self.cache = Cache(ttl=cache_ttl, scraper=self)
         self.metrics_manager = MetricsManager(source_name=source_name)
-        self.logging_manager = get_logger(__name__)
-        self.logger = self.logging_manager.logger
+        self.logging_manager = get_logger(f"{__name__}.{source_name}")
+        self.cache = Cache(ttl=cache_ttl, scraper=self)
         self.metrics_manager.reset()
 
     @abc.abstractmethod
@@ -43,8 +45,12 @@ class BaseScraper(abc.ABC):
 
         Returns:
             Dict[str, Any]: Dictionary of consolidated event data
+            
+        Raises:
+            HTMLDownloadError: If HTML content cannot be downloaded
+            DataExtractionError: If data cannot be extracted from HTML
         """
-        self.logger.info(f"Starting scraping process for URL: {url}", ":rocket:")
+        self.logging_manager.info(f"Starting scraping process for URL: {url}", ":rocket:")
         self.metrics_manager.reset_event_metrics()
         # Concrete implementations should call get_html, parse_html, and display_metrics
 
@@ -59,17 +65,17 @@ class BaseScraper(abc.ABC):
             str: The HTML content
 
         Raises:
-            requests.RequestException: If the request fails
+            HTMLDownloadError: If the HTML content cannot be downloaded
         """
         key = f"html_content_{url}"
         cached_html = self.cache.get(key)
         if cached_html:
             self.metrics_manager.increment('cache_hits')
-            self.logger.info(f"Cache hit for URL: {url}", emoji=":rocket:")
+            self.logging_manager.info(f"Cache hit for URL: {url}", emoji=":rocket:")
             return cached_html
         else:
             self.metrics_manager.increment('cache_misses')
-            self.logger.info(f"Cache miss for URL: {url}, fetching...", emoji=":hourglass:")
+            self.logging_manager.info(f"Cache miss for URL: {url}, fetching...", emoji=":hourglass:")
             try:
                 response = requests.get(url, timeout=30)
                 response.raise_for_status()
@@ -80,8 +86,9 @@ class BaseScraper(abc.ABC):
 
                 return html_content
             except requests.RequestException as e:
-                self.logger.error(f"Failed to fetch HTML from URL: {url}. Error: {str(e)}", ":x:")
-                raise
+                self.logging_manager.error(f"Failed to fetch HTML from URL: {url}. Error: {str(e)}", ":x:")
+                self.metrics_manager.increment('html_download_errors')
+                raise HTMLDownloadError(f"Failed to download HTML from {url}: {str(e)}")
 
     def parse_html(self, html_content: str) -> BeautifulSoup:
         """
@@ -92,16 +99,24 @@ class BaseScraper(abc.ABC):
 
         Returns:
             BeautifulSoup: Parsed HTML document
+            
+        Raises:
+            DataExtractionError: If HTML content cannot be parsed
         """
-        self.logger.debug("Parsing HTML content with BeautifulSoup", ":mag:")
-        soup = BeautifulSoup(html_content, 'html.parser')
+        try:
+            self.logging_manager.debug("Parsing HTML content with BeautifulSoup", ":mag:")
+            soup = BeautifulSoup(html_content, 'html.parser')
 
-        # Find all calendar rows
-        calendar_rows = soup.find_all(class_="calendarRow")
-        self.metrics_manager.set("raw_event_rows", len(calendar_rows))
-        self.logger.info(f"Found {len(calendar_rows)} calendar rows", ":scroll:")
+            # Find all calendar rows
+            calendar_rows = soup.find_all(class_="calendarRow")
+            self.metrics_manager.set("raw_event_rows", len(calendar_rows))
+            self.logging_manager.info(f"Found {len(calendar_rows)} calendar rows", ":scroll:")
 
-        return soup
+            return soup
+        except Exception as e:
+            self.logging_manager.error(f"Failed to parse HTML content: {str(e)}", ":x:")
+            self.metrics_manager.increment('html_parsing_errors')
+            raise DataExtractionError(f"Failed to parse HTML content: {str(e)}")
 
     def _consolidate_events(self, all_events: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -113,7 +128,7 @@ class BaseScraper(abc.ABC):
         Returns:
             Dict[str, Any]: Dictionary of consolidated events, keyed by ride_id
         """
-        self.logger.info(f"Consolidating {len(all_events)} events", ":card_index_dividers:")
+        self.logging_manager.info(f"Consolidating {len(all_events)} events", ":card_index_dividers:")
         self.metrics_manager.set("initial_events", len(all_events))
 
         consolidated = {}
@@ -121,7 +136,8 @@ class BaseScraper(abc.ABC):
         for event in all_events:
             ride_id = event.get("ride_id")
             if not ride_id:
-                self.logger.warning("Event without ride_id found, skipping", ":warning:")
+                self.logging_manager.warning("Event without ride_id found, skipping", ":warning:")
+                self.metrics_manager.increment('events_without_ride_id')
                 continue
 
             if ride_id not in consolidated:
@@ -129,18 +145,20 @@ class BaseScraper(abc.ABC):
             else:
                 # This is a multi-day event that needs consolidation
                 self.metrics_manager.increment("multi_day_events")
-                self.logger.debug(f"Found multi-day event with ride_id: {ride_id}", ":date:")
+                self.logging_manager.debug(f"Found multi-day event with ride_id: {ride_id}", ":date:")
 
                 # Merge the events (implementation details would depend on specific requirements)
                 # For example, you might want to combine distances, update end date, etc.
+                if 'distances' in event and 'distances' in consolidated[ride_id]:
+                    consolidated[ride_id]['distances'].extend(event['distances'])
 
-        self.logger.info(
+        self.logging_manager.info(
             f"Consolidated to {len(consolidated)} events ({self.metrics_manager.get('multi_day_events')} multi-day events)",
             ":sparkles:"
         )
 
         self.metrics_manager.set('events_consolidated', len(consolidated))
-        self.logger.info(f"Consolidated {len(consolidated)} events.", emoji=":check_mark_button:")
+        self.logging_manager.info(f"Consolidated {len(consolidated)} events.", emoji=":check_mark_button:")
 
         return consolidated
 
@@ -154,25 +172,32 @@ class BaseScraper(abc.ABC):
         Returns:
             Dict[str, Any]: Final output dictionary keyed by filenames
         """
-        self.logger.info("Creating final output", ":package:")
+        self.logging_manager.info("Creating final output", ":package:")
 
         # Set the final events count metric
         self.metrics_manager.set("final_events", len(consolidated_events))
 
         # Create the final output structure
         final_output = {}
+        validated_count = 0
 
         for ride_id, event in consolidated_events.items():
-            # Generate a filename based on event details
-            filename = f"{self.source_name.lower()}_{ride_id}.json"
+            # Validate event data
+            validated_event = self.validate_event_data(event)
+            if validated_event:
+                validated_count += 1
+                # Generate a filename based on event details
+                filename = f"{self.source_name.lower()}_{ride_id}.json"
+                # Add to final output
+                final_output[filename] = validated_event
+            else:
+                self.logging_manager.warning(f"Skipping invalid event with ride_id: {ride_id}", ":warning:")
+                self.metrics_manager.increment('invalid_events_skipped')
 
-            # Add to final output
-            final_output[filename] = event
-
-        self.logger.info(f"Final output created with {len(final_output)} events", ":white_check_mark:")
-
+        self.logging_manager.info(f"Final output created with {len(final_output)} events", ":white_check_mark:")
         self.metrics_manager.set('final_events', len(final_output))
-        self.logger.info(f"Created final output for {len(final_output)} events.", emoji=":file_folder:")
+        self.metrics_manager.set('validated_events', validated_count)
+        self.logging_manager.info(f"Created final output for {len(final_output)} events.", emoji=":file_folder:")
 
         return final_output
 
@@ -189,3 +214,29 @@ class BaseScraper(abc.ABC):
             Dict[str, int]: Dictionary of metric names and values
         """
         return self.metrics_manager.get_all_metrics()
+        
+    def validate_event_data(self, event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Validate event data using the Pydantic model.
+        
+        Args:
+            event_data (Dict[str, Any]): Event data to validate
+            
+        Returns:
+            Optional[Dict[str, Any]]: Validated event data or None if validation fails
+        """
+        try:
+            # Ensure source is set
+            if 'source' not in event_data:
+                event_data['source'] = self.source_name
+                
+            # Validate with Pydantic model
+            validated_data = EventDataModel(**event_data).dict()
+            return validated_data
+        except Exception as e:
+            self.logging_manager.warning(
+                f"Validation error for event: {str(e)}", 
+                emoji=":warning:"
+            )
+            self.metrics_manager.increment('validation_errors')
+            return None
