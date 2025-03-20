@@ -2,11 +2,7 @@
 
 from typing import List, Dict, Optional
 from datetime import datetime
-try:
-    from pydantic import BaseModel, Field, validator
-except ImportError:
-    raise ImportError("Pydantic is required for data validation. Please install it with 'pip install pydantic==2.*'")
-
+from pydantic import BaseModel, Field, field_validator
 
 class ControlJudge(BaseModel):
     """Model for control judge data."""
@@ -48,8 +44,9 @@ class EventDataModel(BaseModel):
     directions: Optional[str] = None
     control_judges: List[Dict[str, str]] = Field(default_factory=list)
     distances: List[Dict[str, str]] = Field(default_factory=list)
-    
-    @validator('date_start', 'date_end')
+
+    @field_validator('date_start', 'date_end')
+    @classmethod
     def validate_date_format(cls, v):
         """Validate date format is YYYY-MM-DD."""
         if v:
@@ -58,20 +55,24 @@ class EventDataModel(BaseModel):
             except ValueError as exc:
                 raise ValueError('Date must be in format YYYY-MM-DD') from exc
         return v
-    
-    @validator('ride_days')
-    def validate_ride_days(cls, v, values):
+
+    @field_validator('ride_days')
+    @classmethod
+    def validate_ride_days(cls, v, info):
         """Validate ride_days is consistent with multi-day event status."""
+        values = info.data
         is_multi_day = values.get('is_multi_day_event', False)
         if is_multi_day and v < 2:
             raise ValueError('Multi-day events must have ride_days >= 2')
         if not is_multi_day and v != 1:
             raise ValueError('Single-day events must have ride_days = 1')
         return v
-    
-    @validator('is_pioneer_ride')
-    def validate_pioneer_ride(cls, v, values):
+
+    @field_validator('is_pioneer_ride')
+    @classmethod
+    def validate_pioneer_ride(cls, v, info):
         """Validate pioneer ride status is consistent with ride_days."""
+        values = info.data
         ride_days = values.get('ride_days', 1)
         if v and ride_days < 3:
             raise ValueError('Pioneer rides must have ride_days >= 3')
