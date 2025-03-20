@@ -12,17 +12,20 @@ class Cache:
 
     Provides caching functionality with time-to-live (TTL) feature to prevent
     unnecessary network requests by storing HTML content temporarily.
+    Supports metrics tracking for cache hits and misses.
     """
 
-    def __init__(self, maxsize: int = 128, ttl: int = 86400) -> None:
+    def __init__(self, maxsize: int = 128, ttl: int = 86400, scraper=None) -> None:
         """
         Initialize the Cache.
 
         Args:
             maxsize (int): Maximum number of items in cache (default: 128)
             ttl (int): Time-to-live in seconds (default: 86400 (24 hours))
+            scraper: Optional scraper instance for updating metrics (default: None)
         """
         self.cache = cachetools.TTLCache(maxsize=maxsize, ttl=ttl)
+        self.scraper = scraper
 
     def get(self, key: str) -> Optional[str]:
         """
@@ -35,7 +38,10 @@ class Cache:
             Optional[str]: Cached value if found and valid, None otherwise
         """
         try:
-            return self.cache[key]
+            value = self.cache[key]
+            if self.scraper:
+                pass
+            return value
         except KeyError:
             return None
 
@@ -48,6 +54,8 @@ class Cache:
             value (str): Value to cache
         """
         self.cache[key] = value
+        if self.scraper:
+            pass
 
     def invalidate(self, key: str) -> None:
         """

@@ -6,34 +6,30 @@ from typing import Dict, Any, Optional, List, Union, Tuple
 from contextlib import contextmanager
 import psycopg2
 from psycopg2.extras import Json
+from app.logging_manager import get_logger
 
 
 class DatabaseManager:
     """
-    Handles all database interactions for the scraper application.
+    Manages database interactions for the TrailBlazeApp-Scrapers project.
 
-    Provides methods for inserting and updating event data in the PostgreSQL database,
-    using parameterized queries to prevent SQL injection.
+    Handles connection pooling, data insertion, updating, and retrieval
+    for event data in the PostgreSQL database.
     """
 
     def __init__(self, db_config: Dict[str, str], scraper: Any = None) -> None:
         """
-        Initialize the DatabaseManager with database connection parameters.
+        Initialize DatabaseManager with database configuration.
 
         Args:
-            db_config (Dict[str, str]): Database connection parameters including:
-                - host: Database server hostname
-                - database: Database name
-                - user: Database username
-                - password: Database password
-                - port: Database port (optional, defaults to 5432)
-            scraper (Any, optional): Optional scraper instance for updating metrics.
-                                    Defaults to None.
-
-        Raises:
-            ValueError: If required connection parameters are missing
+            db_config (Dict[str, str]): Database configuration parameters
+            scraper (Any, optional): Scraper instance for metrics updates. Defaults to None.
         """
-        pass
+        self.db_config = db_config
+        self.scraper = scraper # Store scraper instance
+        self._connection_pool = None
+        self.logger = get_logger(__name__).logger # Use LoggingManager logger
+        self._create_connection_pool()
 
     def close_connection(self) -> None:
         """
@@ -61,24 +57,32 @@ class DatabaseManager:
 
     def insert_or_update_event(self, event_data: Dict[str, Any]) -> bool:
         """
-        Insert a new event or update an existing one in the database.
+        Insert a new event or update an existing event in the database.
 
-        This is the core function for event data persistence. It checks if an event
-        with the same source and ride_id exists, then either updates the existing record
-        or inserts a new one accordingly.
+        Checks if an event with the same source and ride_id already exists.
+        If it exists, updates the record; otherwise, inserts a new record.
 
         Args:
-            event_data (Dict[str, Any]): Event data dictionary containing all event fields.
-                Must include 'source' and 'ride_id' keys.
+            event_data (Dict[str, Any]): Event data dictionary
 
         Returns:
             bool: True if operation was successful, False otherwise
-
-        Raises:
-            KeyError: If required fields are missing from event_data
-            Exception: If database operation fails
         """
-        pass
+        source = event_data['source']
+        ride_id = event_data['ride_id']
+
+        if self._event_exists(source, ride_id):
+            self._update_event(event_data)
+            if self.scraper: # Check if scraper is provided
+                self.scraper.metrics_manager.increment('database_updates') # Increment metric
+            self.logger.info(f"Updated event: {source} - {ride_id}", emoji=":repeat_button:") # Use logging_manager
+            return True
+        else:
+            self._insert_event(event_data)
+            if self.scraper: # Check if scraper is provided
+                self.scraper.metrics_manager.increment('database_inserts') # Increment metric
+            self.logger.info(f"Inserted new event: {source} - {ride_id}", emoji=":heavy_plus_sign:") # Use logging_manager
+            return True
 
     def _event_exists(self, source: str, ride_id: str) -> bool:
         """
@@ -204,4 +208,8 @@ class DatabaseManager:
         Raises:
             Exception: If table creation fails
         """
+        pass
+
+    def _create_connection_pool(self) -> None:
+        # Implementation of _create_connection_pool method
         pass
