@@ -20,16 +20,14 @@
         "ride_id": "14526",
         "latitude": null,
         "longitude": null,
+        "city": "Sonoita",
+        "state": "AZ",
+        "country": "USA",
         "distances": [
             {"distance": "50 miles", "date": "2025-03-28", "start_time": "07:00"},
             {"distance": "25 miles", "date": "2025-03-28", "start_time": "08:00"},
             {"distance": "10 miles", "date": "2025-03-28", "start_time": "09:00"}
         ],
-        "location_details": {
-            "city": "Sonoita",
-            "state": "AZ",
-            "country": "USA"
-        },
         "control_judges": [
             {"name": "Larry Nolen", "role": "Control Judge"}
         ],
@@ -55,15 +53,13 @@
         "ride_id": "14546",
         "latitude": null,
         "longitude": null,
+        "city": "Asheville",
+        "state": "NC",
+        "country": "USA",
         "distances": [
             {"distance": "50 miles", "date": "2025-05-02", "start_time": "07:30"},
             {"distance": "25 miles", "date": "2025-05-02", "start_time": "08:30"}
         ],
-        "location_details": {
-            "city": "Asheville",
-            "state": "NC",
-            "country": "USA"
-        },
         "control_judges": [
             {"name": "Nick Kohut", "role": "Control Judge"}
         ],
@@ -90,18 +86,12 @@
         "ride_id": "14492",
         "latitude": 39.23839,
         "longitude": -120.17357,
+        "city": "Truckee",
+        "state": "CA",
+        "country": "USA",
         "distances": [
             {"distance": "100 miles", "date": "2025-07-12", "start_time": "05:15"}
         ],
-        "location_details": {
-            "city": "Truckee",
-            "state": "CA",
-            "country": "USA"
-        },
-        "coordinates": {
-            "latitude": 39.23839,
-            "longitude": -120.17357
-        },
         "map_link": "https://www.google.com/maps/dir/?api=1&destination=39.23839,-120.17357",
         "control_judges": [
             {"name": "Michael S. Peralez", "role": "Control Judge"}
@@ -128,19 +118,13 @@
         "ride_id": "14587",
         "latitude": 50.44538,
         "longitude": -96.443778,
+        "city": "Stead",
+        "state": "MB",
+        "country": "Canada",
         "distances": [
             {"distance": "25 miles", "date": "2025-05-10", "start_time": "08:00"},
             {"distance": "50 miles", "date": "2025-05-10", "start_time": "07:00"}
         ],
-        "location_details": {
-            "city": "Stead",
-            "state": "MB",
-            "country": "Canada"
-        },
-        "coordinates": {
-            "latitude": 50.44538,
-            "longitude": -96.443778
-        },
         "map_link": "https://www.google.com/maps/dir/?api=1&destination=50.445380,-96.443778",
         "control_judges": [
             {"name": "Brittney Derksen", "role": "Control Judge"}
@@ -168,6 +152,9 @@
         "ride_id": "14457",
         "latitude": 35.006586,
         "longitude": -119.888513,
+        "city": "New Cuyama",
+        "state": "CA",
+        "country": "USA",
         "distances": [
             {"distance": "25 miles", "date": "2025-03-28", "start_time": "07:00"},
             {"distance": "50 miles", "date": "2025-03-28", "start_time": "07:00"},
@@ -176,15 +163,6 @@
             {"distance": "25 miles", "date": "2025-03-30", "start_time": "07:00"},
             {"distance": "50 miles", "date": "2025-03-30", "start_time": "07:00"}
         ],
-        "location_details": {
-            "city": "New Cuyama",
-            "state": "CA",
-            "country": "USA"
-        },
-        "coordinates": {
-            "latitude": 35.006586,
-            "longitude": -119.888513
-        },
         "map_link": "https://www.google.com/maps/dir/?api=1&destination=35.006586,-119.888513",
         "control_judges": [
             {"name": "Dave Nicholson", "role": "Control Judge"}
