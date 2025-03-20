@@ -1,5 +1,6 @@
 """Configuration module for the TrailBlazeApp-Scrapers project."""
 
+import logging
 from typing import Dict, Any
 from functools import lru_cache
 from pydantic_settings import BaseSettings
@@ -18,19 +19,23 @@ class Settings(BaseSettings):
     DB_PORT: int = 5432
     DB_NAME: str = "trailblaze"
     DB_USER: str = "postgres"
-    DB_PASSWORD: str
+    DB_PASSWORD: str = ""  # Default empty string, should be set in environment or .env
 
     # Cache settings
     CACHE_TTL: int = 86400  # 24 hours
     CACHE_MAX_SIZE: int = 128
 
+    # Logging settings
+    LOG_LEVEL: str = "INFO"
+
     # AERC specific settings
     AERC_BASE_URL: str = "https://aerc.org/wp-admin/admin-ajax.php"
     AERC_CALENDAR_URL: str = "https://aerc.org/calendar"
 
-    class Config:
-        """Pydantic config class."""
-        env_file = ".env"
+    model_config = {
+        "env_file": ".env",
+        "extra": "ignore"  # Allow extra fields to be ignored
+    }
 
 
 @lru_cache()
@@ -59,3 +64,21 @@ def get_db_config() -> Dict[str, Any]:
         "user": settings.DB_USER,
         "password": settings.DB_PASSWORD
     }
+
+
+def get_log_level() -> int:
+    """
+    Get log level as integer value.
+
+    Returns:
+        int: Logging level (e.g., logging.INFO)
+    """
+    settings = get_settings()
+    level_map = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL
+    }
+    return level_map.get(settings.LOG_LEVEL.upper(), logging.INFO)
