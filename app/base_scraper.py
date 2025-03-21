@@ -1,8 +1,9 @@
 """Base scraper module for the TrailBlazeApp-Scrapers project."""
 
 import abc
-import requests
+from datetime import datetime
 from typing import Dict, List, Any, Optional
+import requests
 from bs4 import BeautifulSoup
 
 from app.logging_manager import get_logger, LoggingManager
@@ -45,7 +46,7 @@ class BaseScraper(abc.ABC):
 
         Returns:
             Dict[str, Any]: Dictionary of consolidated event data
-            
+
         Raises:
             HTMLDownloadError: If HTML content cannot be downloaded
             DataExtractionError: If data cannot be extracted from HTML
@@ -88,7 +89,7 @@ class BaseScraper(abc.ABC):
             except requests.RequestException as e:
                 self.logging_manager.error(f"Failed to fetch HTML from URL: {url}. Error: {str(e)}", ":x:")
                 self.metrics_manager.increment('html_download_errors')
-                raise HTMLDownloadError(f"Failed to download HTML from {url}: {str(e)}")
+                raise HTMLDownloadError(f"Failed to download HTML from {url}: {str(e)}") from e
 
     def parse_html(self, html_content: str) -> BeautifulSoup:
         """
@@ -99,7 +100,7 @@ class BaseScraper(abc.ABC):
 
         Returns:
             BeautifulSoup: Parsed HTML document
-            
+
         Raises:
             DataExtractionError: If HTML content cannot be parsed
         """
@@ -113,10 +114,10 @@ class BaseScraper(abc.ABC):
             self.logging_manager.info(f"Found {len(calendar_rows)} calendar rows", ":scroll:")
 
             return soup
-        except Exception as e:
+        except (ValidationError, TypeError, ValueError) as e:
             self.logging_manager.error(f"Failed to parse HTML content: {str(e)}", ":x:")
             self.metrics_manager.increment('html_parsing_errors')
-            raise DataExtractionError(f"Failed to parse HTML content: {str(e)}")
+            raise DataExtractionError(f"Failed to parse HTML content: {str(e)}") from e
 
     def _consolidate_events(self, all_events: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -132,6 +133,7 @@ class BaseScraper(abc.ABC):
         self.metrics_manager.set("initial_events", len(all_events))
 
         consolidated = {}
+        multi_day_events = {}  # Track multi-day events by ride_id
 
         for event in all_events:
             ride_id = event.get("ride_id")
@@ -142,18 +144,51 @@ class BaseScraper(abc.ABC):
 
             if ride_id not in consolidated:
                 consolidated[ride_id] = event
+                # Initialize tracking for this ride_id
+                if ride_id not in multi_day_events:
+                    multi_day_events[ride_id] = {
+                        "days": set([event.get("date_start")])
+                    }
             else:
                 # This is a multi-day event that needs consolidation
-                self.metrics_manager.increment("multi_day_events")
                 self.logging_manager.debug(f"Found multi-day event with ride_id: {ride_id}", ":date:")
+
+                # Track all unique dates for this event
+                if event.get("date_start"):
+                    multi_day_events[ride_id]["days"].add(event.get("date_start"))
 
                 # Merge the events (implementation details would depend on specific requirements)
                 # For example, you might want to combine distances, update end date, etc.
                 if 'distances' in event and 'distances' in consolidated[ride_id]:
                     consolidated[ride_id]['distances'].extend(event['distances'])
 
+        # Update multi-day flags for all consolidated events
+        multi_day_count = 0
+        for ride_id, event in consolidated.items():
+            if ride_id in multi_day_events and len(multi_day_events[ride_id]["days"]) > 1:
+                event["is_multi_day_event"] = True
+
+                # Update ride days count
+                days = sorted(list(multi_day_events[ride_id]["days"]))
+                if len(days) >= 1:
+                    event["date_start"] = days[0]
+                    event["date_end"] = days[-1]
+
+                    # Calculate ride days
+                    start_dt = datetime.strptime(event["date_start"], "%Y-%m-%d")
+                    end_dt = datetime.strptime(event["date_end"], "%Y-%m-%d")
+                    event["ride_days"] = (end_dt - start_dt).days + 1
+
+                    # Check for pioneer ride (3 or more days)
+                    if event["ride_days"] >= 3:
+                        event["is_pioneer_ride"] = True
+
+                multi_day_count += 1
+                self.metrics_manager.increment("multi_day_events")
+                self.logging_manager.debug(f"Marked event {ride_id} as multi-day with {event['ride_days']} days")
+
         self.logging_manager.info(
-            f"Consolidated to {len(consolidated)} events ({self.metrics_manager.get('multi_day_events')} multi-day events)",
+            f"Consolidated to {len(consolidated)} events ({multi_day_count} multi-day events)",
             ":sparkles:"
         )
 
@@ -214,14 +249,14 @@ class BaseScraper(abc.ABC):
             Dict[str, int]: Dictionary of metric names and values
         """
         return self.metrics_manager.get_all_metrics()
-        
+
     def validate_event_data(self, event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Validate event data using the Pydantic model.
-        
+
         Args:
             event_data (Dict[str, Any]): Event data to validate
-            
+
         Returns:
             Optional[Dict[str, Any]]: Validated event data or None if validation fails
         """
@@ -229,13 +264,13 @@ class BaseScraper(abc.ABC):
             # Ensure source is set
             if 'source' not in event_data:
                 event_data['source'] = self.source_name
-                
+
             # Validate with Pydantic model
             validated_data = EventDataModel(**event_data).dict()
             return validated_data
-        except Exception as e:
+        except (ValidationError, TypeError, ValueError) as e:
             self.logging_manager.warning(
-                f"Validation error for event: {str(e)}", 
+                f"Validation error for event: {str(e)}",
                 emoji=":warning:"
             )
             self.metrics_manager.increment('validation_errors')
