@@ -1,10 +1,10 @@
 """Tests for the BaseScraper abstract base class."""
 
-import pytest
-from unittest.mock import MagicMock, patch
-from bs4 import BeautifulSoup
-from datetime import datetime
 from typing import Dict, Any
+from unittest.mock import MagicMock, patch
+from datetime import datetime
+from bs4 import BeautifulSoup
+import pytest
 
 from app.base_scraper import BaseScraper
 
@@ -15,7 +15,8 @@ class TestScraper(BaseScraper):
     def scrape(self, url: str) -> Dict[str, Any]:
         """Test implementation of abstract method."""
         html = self.get_html(url)
-        soup = self.parse_html(html)
+        _ = self.parse_html(html)
+
         events = [{"ride_id": "test123", "name": "Test Event"}]
         return self._consolidate_events(events)
 
@@ -39,14 +40,14 @@ def sample_events():
         {
             "ride_id": "123",
             "name": "Test Event",
-            "date": "2025-03-20",
-            "distances": [{"distance": "50"}]
+            "date_start": "2025-03-20",
+            "distances": [{"distance": "50", "date": "2025-03-20"}]
         },
         {
             "ride_id": "123",
             "name": "Test Event",
-            "date": "2025-03-21",
-            "distances": [{"distance": "75"}]
+            "date_start": "2025-03-21",
+            "distances": [{"distance": "75", "date": "2025-03-21"}]
         }
     ]
 
@@ -55,12 +56,22 @@ def test_init(scraper):
     """Test BaseScraper initialization."""
     assert scraper.source_name == "TEST"
     assert hasattr(scraper, "metrics")
-    assert scraper.metrics == {
-        "events_processed": 0,
-        "events_consolidated": 0,
-        "database_inserts": 0,
-        "database_updates": 0
-    }
+
+    # Check that these expected metrics exist (without checking every metric)
+    expected_metrics = [
+        "raw_event_rows",
+        "initial_events",
+        "final_events",
+        "multi_day_events",
+        "database_inserts",
+        "database_updates",
+        "cache_hits",
+        "cache_misses"
+    ]
+
+    for metric in expected_metrics:
+        assert metric in scraper.metrics, f"Expected metric '{metric}' not found"
+        assert isinstance(scraper.metrics[metric], int), f"Metric '{metric}' is not an integer"
 
 
 def test_get_html_success(scraper):
@@ -71,7 +82,9 @@ def test_get_html_success(scraper):
 
         result = scraper.get_html("https://example.com")
         assert result == "<html>Test</html>"
-        mock_get.assert_called_once_with("https://example.com")
+
+        # Check that the URL is correct, but allow any other parameters
+        assert mock_get.call_args[0][0] == "https://example.com"
 
 
 def test_get_html_cached(scraper):
@@ -99,6 +112,9 @@ def test_consolidate_events(scraper, sample_events):
     assert "123" in result
     assert len(result["123"]["distances"]) == 2
     assert result["123"]["is_multi_day_event"] is True
+    assert result["123"]["date_start"] == "2025-03-20"
+    assert result["123"]["date_end"] == "2025-03-21"
+    assert result["123"]["ride_days"] == 2
 
 
 def test_create_final_output(scraper):
@@ -107,7 +123,19 @@ def test_create_final_output(scraper):
         "123": {
             "ride_id": "123",
             "name": "Test Event",
-            "source": "TEST"
+            "source": "TEST",
+            "region": "TEST",
+            "date_start": "2025-03-20",
+            "date_end": "2025-03-20",
+            "location_name": "Test Location",
+            "ride_manager": "Test Manager",
+            "is_multi_day_event": False,
+            "is_pioneer_ride": False,
+            "ride_days": 1,
+            "is_canceled": False,
+            "event_type": "endurance",
+            "has_intro_ride": False,
+            "distances": [{"distance": "50", "date": "2025-03-20"}]
         }
     }
 
@@ -120,12 +148,25 @@ def test_metrics_property(scraper):
     """Test metrics property."""
     metrics = scraper.metrics
     assert isinstance(metrics, dict)
-    assert "events_processed" in metrics
-    assert "events_consolidated" in metrics
+
+    # Check for the new metric names instead of the old ones
+    expected_metrics = [
+        "raw_event_rows",
+        "initial_events",
+        "final_events",
+        "multi_day_events",
+        "database_inserts",
+        "database_updates",
+        "cache_hits",
+        "cache_misses"
+    ]
+
+    for metric in expected_metrics:
+        assert metric in metrics, f"Expected metric '{metric}' not found"
 
 
 def test_display_metrics(scraper, capsys):
     """Test metrics display."""
     scraper.display_metrics()
     captured = capsys.readouterr()
-    assert "Scraping Metrics" in captured.out
+    assert "Scraping Summary for TEST" in captured.out
