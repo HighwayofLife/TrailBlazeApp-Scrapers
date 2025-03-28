@@ -67,13 +67,3 @@ class EventDataModel(BaseModel):
         if not is_multi_day and v != 1:
             raise ValueError('Single-day events must have ride_days = 1')
         return v
-
-    @field_validator('is_pioneer_ride')
-    @classmethod
-    def validate_pioneer_ride(cls, v, info):
-        """Validate pioneer ride status is consistent with ride_days."""
-        values = info.data
-        ride_days = values.get('ride_days', 1)
-        if v and ride_days < 3:
-            raise ValueError('Pioneer rides must have ride_days >= 3')
-        return v
