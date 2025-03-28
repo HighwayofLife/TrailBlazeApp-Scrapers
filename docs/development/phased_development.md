@@ -4,39 +4,7 @@ This document outlines a phased development plan for the TrailBlazeApp-Scrapers 
 
 ## Phase 1: Core Functionality
 
-**Focus**: Setting up the basic project structure and implementing essential core components that will be used across all scrapers.
-
-**Classes/Modules to Implement in Order**:
-
-1.  **`app/config.py`**:
-    *   **Purpose**:  Manage application configuration using `pydantic-settings`. Load settings from environment variables and `.env` files.
-    *   **Why first**: Configuration is fundamental. It defines database settings, cache parameters, and other global settings required by other modules.
-    *   **Testing**: Unit tests to verify settings are loaded correctly from environment variables and default values are used when necessary.
-
-2.  **`app/logging_manager.py`**:
-    *   **Purpose**: Centralized logging management using the `logging` module and `colorama` for formatted output.
-    *   **Why next**: Logging is crucial for debugging and monitoring the application from the beginning.
-    *   **Testing**: Unit tests to ensure different log levels work as expected and output is formatted correctly.
-
-3.  **`app/metrics_manager.py`**:
-    *   **Purpose**:  Manage metrics collection and display for tracking scraper performance and data integrity.
-    *   **Why**: Metrics are important for monitoring the scraping process and validating data extraction.
-    *   **Testing**: Unit tests to verify metrics are incremented and displayed correctly. Test metric validation logic.
-
-4.  **`app/utils.py`**:
-    *   **Purpose**: Implement utility functions like `parse_date`, `parse_time`, `extract_city_state_country`, and `generate_file_name`.
-    *   **Why**: These utility functions are used by multiple modules, including scrapers and database managers.
-    *   **Testing**: Comprehensive unit tests for each utility function, covering various input formats and edge cases.
-
-5.  **`app/cache.py`**:
-    *   **Purpose**: Implement caching mechanism using `cachetools.TTLCache` to avoid redundant HTML downloads.
-    *   **Why**: Caching is essential for efficiency and reducing load on target websites.
-    *   **Testing**: Unit tests to verify cache hits, cache misses, TTL expiration, and cache invalidation.
-
-6.  **`app/base_scraper.py`**:
-    *   **Purpose**: Implement the abstract `BaseScraper` class, defining the common interface and shared functionalities for all concrete scrapers (e.g., `get_html`, `_consolidate_events`, `create_final_output`, `display_metrics`).
-    *   **Why**: Provides the foundation for building specific scrapers and enforces consistency.
-    *   **Testing**: Unit tests for the concrete methods in `BaseScraper`. Mock abstract methods for testing purposes.
+(complete)
 
 **Phase 1 Deliverables**:
 
@@ -46,24 +14,7 @@ This document outlines a phased development plan for the TrailBlazeApp-Scrapers 
 
 ## Phase 2: Database Integration and Data Handling
 
-**Focus**: Connecting the application to the PostgreSQL database and implementing data persistence and validation.
-
-**Classes/Modules to Implement in Order**:
-
-1.  **`app/database.py`**:
-    *   **Purpose**: Implement the `DatabaseManager` class to handle all database interactions (connection management, CRUD operations for events).
-    *   **Why**: Database interaction is crucial for storing and managing scraped data.
-    *   **Testing**: Unit tests for database connection, insert, update, delete, and query operations. Use a test database (e.g., in Docker) for integration testing. Test context manager functionality.
-
-2.  **`app/models.py`**:
-    *   **Purpose**: Define data models using Pydantic for data validation and schema definition (`EventDataModel`, `Distance`, `ControlJudge`).
-    *   **Why**: Data models ensure data consistency and facilitate validation before database insertion.
-    *   **Testing**: Unit tests to validate data models against valid and invalid data inputs.
-
-3.  **`app/data_validator.py`**:
-    *   **Purpose**: Implement the `DataValidator` class to validate scraped data against the Pydantic models and database constraints.
-    *   **Why**: Data validation is critical for ensuring data integrity and catching errors early in the scraping process.
-    *   **Testing**: Comprehensive unit tests for data validation, covering schema validation, existence checks, data comparison, and edge cases.
+(complete)
 
 **Phase 2 Deliverables**:
 
