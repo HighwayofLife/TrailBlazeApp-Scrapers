@@ -104,7 +104,7 @@ class DataValidator:
             # Use our Pydantic model to validate the event data
             EventDataModel(**event_data)
         except Exception as e:
-            raise ValidationError(f"Invalid event data: {str(e)}")
+            raise ValidationError(f"Invalid event data: {str(e)}") from e
 
     def _compare_event_data(self, expected_data: Dict[str, Any],
                            stored_data: Dict[str, Any]) -> Tuple[bool, Optional[List[str]]]:

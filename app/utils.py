@@ -60,71 +60,124 @@ def parse_time(time_string: str) -> datetime:
 
 def extract_city_state_country(location_string: str) -> Tuple[Optional[str], Optional[str], str]:
     """
-    Extract city, state, and country from a location string.
+    Extract City, State/Province, and Country from a location string.
+    Handles various formats like "City, ST", "Venue, City, ST", "Address, City ST".
 
     Args:
-        location_string (str): Full location string (e.g., "Test Ranch, Test City, AZ")
+        location_string (str): The location string to parse.
 
     Returns:
-        Tuple[Optional[str], Optional[str], str]: Tuple containing (city, state, country)
+        Tuple[Optional[str], Optional[str], str]: (city, state, country)
+        Country defaults to "USA" unless a Canadian province is detected.
     """
-    # Default country is USA unless specified
-    country = "USA"
-
     if not location_string:
-        return None, None, country
+        return None, None, "USA"
 
-    # Clean up the input
-    location = location_string.strip()
+    # Basic cleaning - remove leading/trailing whitespace and commas
+    cleaned = location_string.strip().strip(',').strip()
+    # Remove map link text variations if present
+    cleaned = re.sub(r'Click Here for Directions via Google Maps.*', '', cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r'via Google Maps.*', '', cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r'Directions via Google Maps.*', '', cleaned, flags=re.IGNORECASE).strip()
 
-    # Check for Canadian provinces
-    canadian_provinces = {
-        "AB": "Canada", "BC": "Canada", "MB": "Canada", "NB": "Canada",
-        "NL": "Canada", "NS": "Canada", "NT": "Canada", "NU": "Canada",
-        "ON": "Canada", "PE": "Canada", "QC": "Canada", "SK": "Canada",
-        "YT": "Canada", "Alberta": "Canada", "British Columbia": "Canada",
-        "Manitoba": "Canada", "New Brunswick": "Canada", "Newfoundland": "Canada",
-        "Nova Scotia": "Canada", "Northwest Territories": "Canada", "Nunavut": "Canada",
-        "Ontario": "Canada", "Prince Edward Island": "Canada", "Quebec": "Canada",
-        "Saskatchewan": "Canada", "Yukon": "Canada"
-    }
+    # List of Canadian provinces/territories (add more if needed)
+    canadian_provinces = {"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"}
 
-    # Split by commas
-    parts = [part.strip() for part in location.split(",")]
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: str = "USA"  # Default to USA
 
-    # Default values
-    city = None
-    state = None
+    # Split by comma, removing empty parts
+    parts = [part.strip() for part in cleaned.split(',') if part.strip()]
 
     if len(parts) >= 3:
-        # Format: Ranch/Venue, City, State
-        # Last part is likely state
-        state = parts[-1]
-        # Second to last part is likely city
+        # Assume format like: Venue/Address, City, State/Province [, Country]?
+        # State/Province is likely the last part, City the second to last.
+        state_part = parts[-1]
         city = parts[-2]
 
-        # Check if state is a Canadian province
-        if state in canadian_provinces:
+        # Check if state_part contains country info (e.g., "MB Canada")
+        state_split = state_part.rsplit(' ', 1)
+        if len(state_split) == 2 and state_split[1].lower() == 'canada':
+            state = state_split[0]
             country = "Canada"
-    elif len(parts) == 2:
-        # Format: City, State
-        city = parts[0]
-        state = parts[1]
-
-        # Check if state is a Canadian province
-        if state in canadian_provinces:
-            country = "Canada"
-    elif len(parts) == 1:
-        # Only one part, might be just the state or just the city
-        # Check if it's a state code (2 letters)
-        if re.match(r"^[A-Z]{2}$", parts[0]):
-            state = parts[0]
-
-            # Check if state is a Canadian province
-            if state in canadian_provinces:
-                country = "Canada"
         else:
-            city = parts[0]
+            state = state_part  # Assume last part is state/province
+
+        if state in canadian_provinces:
+            country = "Canada"
+
+    elif len(parts) == 2:
+        # Could be: "City, State" or "Address/Venue, City State"
+        first_part = parts[0]
+        second_part = parts[1]
+
+        # Try splitting the second part by the last space
+        city_state_split = second_part.rsplit(' ', 1)
+
+        if len(city_state_split) == 2:
+            # Likely "Address/Venue, City State" (e.g., "52 San Tomaso Rd, Alamogordo NM")
+            potential_city = city_state_split[0]
+            potential_state = city_state_split[1]
+            # Basic validation for state (e.g., 2 letters or Canadian province)
+            if (len(potential_state) == 2 and potential_state.isalpha()) or potential_state in canadian_provinces:
+                city = potential_city
+                state = potential_state
+                if state in canadian_provinces:
+                    country = "Canada"
+            else:
+                 # Didn't look like "City State", maybe it's "City, State" format?
+                 city = first_part
+                 state = second_part # Treat full second part as state initially
+                 if not ((len(state) == 2 and state.isalpha()) or state in canadian_provinces):
+                     state = None # Invalid state format
+                 elif state in canadian_provinces:
+                      country = "Canada"
+
+        elif len(city_state_split) == 1: # rsplit found no space in second_part
+            # Likely "City, State" format (e.g., "Asheville, NC")
+            city = first_part
+            state = second_part
+            if not ((len(state) == 2 and state.isalpha()) or state in canadian_provinces):
+                state = None # Invalid state format
+            elif state in canadian_provinces:
+                 country = "Canada"
+
+    elif len(parts) == 1:
+        # Only one part, could be City, State, "City State", etc.
+        # Try splitting by last space
+        city_state_split = parts[0].rsplit(' ', 1)
+        if len(city_state_split) == 2:
+            # Potentially "City State" format
+            potential_city = city_state_split[0]
+            potential_state = city_state_split[1]
+            if (len(potential_state) == 2 and potential_state.isalpha()) or potential_state in canadian_provinces:
+                city = potential_city
+                state = potential_state
+                if state in canadian_provinces:
+                    country = "Canada"
+            else:
+                # Doesn't look like "City State", treat as just City
+                city = parts[0]
+        else:
+            # No space, could be just City or just State
+            if (len(parts[0]) == 2 and parts[0].isalpha()) or parts[0] in canadian_provinces:
+                state = parts[0]
+                if state in canadian_provinces:
+                    country = "Canada"
+            else:
+                city = parts[0]
+
+    # Final check for country based on state
+    if state and state in canadian_provinces:
+        country = "Canada"
+    elif state and country == "USA":
+        # Optional: Add validation against a list of US states if needed
+        pass
+
+    # Trim final results just in case
+    city = city.strip() if city else None
+    state = state.strip() if state else None
 
     return city, state, country
 

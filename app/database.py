@@ -1,7 +1,7 @@
 """Database management module for the TrailBlazeApp-Scrapers project."""
 
 import json
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional, List, Union
 from contextlib import contextmanager
 import psycopg2
 from psycopg2.extras import Json
