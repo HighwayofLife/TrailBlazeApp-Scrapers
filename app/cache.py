@@ -39,10 +39,12 @@ class Cache:
         """
         try:
             value = self.cache[key]
-            if self.scraper:
-                pass
+            if self.scraper and hasattr(self.scraper, 'metrics_manager'):
+                self.scraper.metrics_manager.increment('cache_hits')
             return value
         except KeyError:
+            if self.scraper and hasattr(self.scraper, 'metrics_manager'):
+                self.scraper.metrics_manager.increment('cache_misses')
             return None
 
     def set(self, key: str, value: str) -> None:
@@ -54,8 +56,7 @@ class Cache:
             value (str): Value to cache
         """
         self.cache[key] = value
-        if self.scraper:
-            pass
+        # Metrics are handled in the 'get' method upon hit/miss
 
     def invalidate(self, key: str) -> None:
         """

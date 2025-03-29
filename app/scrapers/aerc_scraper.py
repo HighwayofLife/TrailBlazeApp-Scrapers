@@ -112,17 +112,6 @@ class AERCScraper(BaseScraper):
                         "ride_days": 1,
                         "date_end": date_start # Date end is same as start for non-multi-day
                     })
-                else:
-                    # Determine multi-day event and pioneer status based on distances (only for future events)
-                    is_multi_day, is_pioneer, ride_days, date_end = self._determine_multi_day_and_pioneer(
-                        event_data.get("distances", []), date_start
-                    )
-                    event_data.update({
-                        "is_multi_day_event": is_multi_day,
-                        "is_pioneer_ride": is_pioneer,
-                        "ride_days": ride_days,
-                        "date_end": date_end
-                    })
 
                 # Extract city, state, country from location
                 city, state, country = extract_city_state_country(location_name)
@@ -325,6 +314,201 @@ class AERCScraper(BaseScraper):
 
         return website_url, flyer_url
 
+    def _find_details_elements(self, calendar_row: Any) -> Tuple[Optional[Any], bool]:
+        """
+        Find the details table element and determine initial past event status.
+
+        Args:
+            calendar_row (Any): BeautifulSoup element representing a calendar row.
+
+        Returns:
+            Tuple[Optional[Any], bool]: The detail table element (or None) and
+                                         a boolean indicating if it's likely a past event
+                                         based on the '* Results *' link.
+        """
+        is_past = False # Initialize is_past flag
+
+        # Find the ride ID to locate the details row by name attribute
+        ride_id = None
+        ride_name_span = calendar_row.find("span", class_="rideName details")
+        if ride_name_span:
+            ride_id = ride_name_span.get("tag", "")
+
+        # Find the details row (<tr>)
+        details_tr = None
+        if ride_id:
+            details_tr = calendar_row.find("tr", attrs={"name": f"{ride_id}Details"})
+
+        if not details_tr:
+            # Try to find by class as a fallback
+            details_tr = calendar_row.find("tr", class_="toggle-ride-dets")
+
+        if not details_tr:
+            self.logging_manager.debug(f"Could not find details TR for ride_id: {ride_id}")
+            return None, is_past # No details row found
+
+        # Find the detail data table (<table>) within the details row
+        detail_table = details_tr.find("table", class_="detailData")
+        if not detail_table:
+            # Check if missing table is due to being a past event (indicated by "* Results *" link)
+            results_link = calendar_row.find("span", class_="details", string=lambda s: s and "* Results *" in s)
+            if results_link:
+                self.logging_manager.debug(f"Detected past event by '* Results *' link for ride_id: {ride_id}")
+                is_past = True
+                # Attempt to find the details table again, it might still exist even with the results link
+                detail_table = details_tr.find("table", class_="detailData")
+                if not detail_table:
+                    self.logging_manager.debug(f"No details table found even after detecting past event for ride_id: {ride_id}")
+                    # Return None for the table, but True for is_past
+                    return None, is_past
+            else:
+                # No results link found either, definitely no table
+                self.logging_manager.debug(f"No details table found and no '* Results *' link for ride_id: {ride_id}")
+                return None, is_past # No details table found
+
+        # Found the detail_table, return it and the determined is_past flag
+        return detail_table, is_past
+
+    def _parse_manager_details(self, tr: Any, details: Dict[str, Any]) -> None:
+        """
+        Parse ride manager name, phone, and email from a table row.
+
+        Args:
+            tr (Any): BeautifulSoup element representing a table row (tr).
+            details (Dict[str, Any]): The details dictionary to update.
+        """
+        td_text = tr.get_text().strip()
+
+        # Extract manager name - everything before the first parenthesis or comma
+        manager_match = re.search(r"Ride Manager\s*:\s*([^,(]*)", td_text)
+        if manager_match:
+            details["ride_manager"] = manager_match.group(1).strip()
+
+        # Extract phone number from parentheses
+        phone_match = re.search(r"\(\s*([0-9\-\s]+)\s*\)", td_text)
+        if phone_match:
+            # Remove potential spaces within the phone number
+            phone_number = phone_match.group(1).replace(" ", "").strip()
+            details["manager_phone"] = phone_number
+
+        # Extract email from parentheses containing @
+        email_match = re.search(r"\(\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})\s*\)", td_text)
+        if email_match:
+            details["manager_email"] = email_match.group(1).strip()
+
+    def _parse_control_judges(self, tr: Any, details: Dict[str, Any]) -> None:
+        """
+        Parse control judge names and roles from a table row.
+
+        Args:
+            tr (Any): BeautifulSoup element representing a table row (tr).
+            details (Dict[str, Any]): The details dictionary to update.
+        """
+        td_text = tr.get_text().strip()
+        judge_match = re.search(r"(.*Control Judge)\s*:\s*(.*)", td_text)
+        if judge_match:
+            role = judge_match.group(1).strip()
+            name = judge_match.group(2).strip()
+            # Ensure the list exists before appending
+            if "control_judges" not in details:
+                details["control_judges"] = []
+            details["control_judges"].append({"name": name, "role": role})
+
+    def _parse_distances(self, tr: Any, details: Dict[str, Any], default_date: Optional[str]) -> None:
+        """
+        Parse distance information from a table row.
+
+        Args:
+            tr (Any): BeautifulSoup element representing the distances table row (tr).
+            details (Dict[str, Any]): The details dictionary to update.
+            default_date (Optional[str]): The default date to use if not specified per distance.
+        """
+        td_text = tr.get_text().strip()
+        distances_text = td_text.replace("Distances", "").replace(":", "").strip()
+
+        # Split by commas or "and"
+        distance_parts = [d.strip() for d in re.split(r',|\s+and\s+', distances_text) if d.strip()]
+
+        # Ensure the list exists before appending
+        if "distances" not in details:
+            details["distances"] = []
+
+        # Process each distance entry
+        for dist in distance_parts:
+            # Initialize distance object with default date
+            distance_obj = {
+                "distance": "",
+                "date": default_date,
+                "start_time": "00:00"  # Provide a default start_time
+            }
+
+            # Extract distance value (e.g., "50", "100")
+            dist_match = re.search(r'(\d+)(?:\s*mi(?:les)?)?', dist)
+            if dist_match:
+                distance_value = dist_match.group(1)
+                distance_obj["distance"] = distance_value
+
+                # Look for "mi" or "miles" and include in the distance
+                if "mi" in dist or "miles" in dist:
+                    distance_obj["distance"] = f"{distance_value} miles"
+            else:
+                self.logging_manager.warning(f"Could not extract distance value from: {dist}")
+                continue  # Skip if no distance found
+
+            # Check for specific date in the distance description (e.g., "May 1")
+            date_match = re.search(r'\(((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:,?\s+\d{4})?)\)', dist)
+            if date_match:
+                date_text = date_match.group(1)
+                try:
+                    # If the matched date doesn't include a year, add the year from default_date
+                    parsed_date_str = date_text
+                    if not re.search(r'\d{4}', date_text):
+                        if default_date:
+                            year = default_date.split('-')[0]
+                            parsed_date_str += f", {year}"
+                        else:
+                            # Attempt to guess year if default_date is None (should be rare)
+                            current_year = datetime.now().year
+                            parsed_date_str += f", {current_year}"
+                            self.logging_manager.warning(f"No default date provided, guessing year {current_year} for distance date: {date_text}")
+
+                    # Use the utility function for robust parsing
+                    parsed_date = parse_date(parsed_date_str)
+                    if parsed_date:
+                        distance_obj["date"] = parsed_date.strftime("%Y-%m-%d")
+                    else:
+                        self.logging_manager.warning(f"Utility parse_date failed for distance date: {parsed_date_str}")
+                        # Keep default_date if parsing fails
+                except (ValueError, IndexError, TypeError) as e:
+                    # If parsing fails, keep the default date
+                    self.logging_manager.warning(f"Could not parse date from distance: '{date_text}'. Error: {e}")
+
+            # Try to extract start time if present
+            time_match = re.search(r'(\d{1,2}(?::\d{2})?\s*(?:am|pm))', dist.lower())
+            if time_match:
+                distance_obj["start_time"] = time_match.group(1)
+
+            details["distances"].append(distance_obj)
+
+    def _parse_description_directions(self, tr: Any, details: Dict[str, Any]) -> None:
+        """
+        Parse description and directions from a table row.
+
+        Args:
+            tr (Any): BeautifulSoup element representing a table row (tr).
+            details (Dict[str, Any]): The details dictionary to update.
+        """
+        td_text = tr.get_text().strip()
+
+        if "Description" in td_text:
+            desc_match = re.search(r"Description\s*:(.*?)(?:Directions|$)", td_text, re.DOTALL)
+            if desc_match:
+                details["description"] = desc_match.group(1).strip()
+        elif "Directions" in td_text:
+            dir_match = re.search(r"Directions\s*:(.*)", td_text, re.DOTALL)
+            if dir_match:
+                details["directions"] = dir_match.group(1).strip()
+
     def _extract_details(self, calendar_row: Any) -> Tuple[Dict[str, Any], bool]:
         """
         Extract detailed event information from the expanded details section.
@@ -347,46 +531,26 @@ class AERCScraper(BaseScraper):
             "ride_manager": None
             # NOTE: results_by_distance is intentionally omitted from this dict
         }
-        is_past = False # Flag to indicate if this is a past event
+        # is_past = False # Flag moved to _find_details_elements
 
-        # Find the ride ID
-        ride_id = None
-        ride_name_span = calendar_row.find("span", class_="rideName details")
-        if ride_name_span:
-            ride_id = ride_name_span.get("tag", "")
+        # Find the details table and determine initial past status
+        detail_table, is_past = self._find_details_elements(calendar_row)
 
-        # Find the details row
-        details_tr = None
-        if ride_id:
-            details_tr = calendar_row.find("tr", attrs={"name": f"{ride_id}Details"})
-
-        if not details_tr:
-            # Try to find by class
-            details_tr = calendar_row.find("tr", class_="toggle-ride-dets")
-
-        if not details_tr:
+        # If no details table was found, return the default empty details and the is_past status
+        if not detail_table:
             return details, is_past
 
-        # Find the detail data table
-        detail_table = details_tr.find("table", class_="detailData")
-        if not detail_table:
-            # Check if this is because it's a past event (indicated by "* Results *" link)
-            results_link = calendar_row.find("span", class_="details", string=lambda s: s and "* Results *" in s)
-            if results_link:
-                self.logging_manager.debug(f"Detected past event by '* Results *' link for ride_id: {ride_id}")
-                is_past = True
-                # Attempt to find the details table again, it might be there even with results link
-                detail_table = details_tr.find("table", class_="detailData")
-                if not detail_table:
-                    return details, is_past # Return early if no details table found for past event
-            else:
-                return details, is_past # Return early if no details table found
-
-        # Get the default date from the calendar row
+        # Get the default date from the calendar row (needed for distance parsing)
         default_date = None
         region_date_location = self._extract_region_date_location(calendar_row)
         if region_date_location:
             default_date = region_date_location[1]  # date_start is the 2nd item
+
+        # Re-find ride_id for logging purposes within the loop (consider passing it from find_details later if needed)
+        ride_id = None
+        ride_name_span = calendar_row.find("span", class_="rideName details")
+        if ride_name_span:
+            ride_id = ride_name_span.get("tag", "")
 
         # Process each row in the detail table
         for tr in detail_table.find_all("tr"):
@@ -422,91 +586,28 @@ class AERCScraper(BaseScraper):
 
             # Process manager info (common to past and future)
             if "Ride Manager" in td_text:
-                # Extract manager name - everything before the first parenthesis or comma
-                manager_match = re.search(r"Ride Manager\s*:\s*([^,(]*)", td_text)
-                if manager_match:
-                    details["ride_manager"] = manager_match.group(1).strip()
-
-                # Extract phone number from parentheses
-                phone_match = re.search(r"\(\s*([0-9\-\s]+)\s*\)", td_text)
-                if phone_match:
-                    details["manager_phone"] = phone_match.group(1).strip()
-
-                # Extract email from parentheses containing @
-                email_match = re.search(r"\(\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})\s*\)", td_text)
-                if email_match:
-                    details["manager_email"] = email_match.group(1).strip()
+                self._parse_manager_details(tr, details)
+                continue # Move to next row after processing manager details
 
             # Process control judges (common to past and future)
             elif "Control Judge" in td_text:
-                judge_match = re.search(r"(.*Control Judge)\s*:\s*(.*)", td_text)
-                if judge_match:
-                    role = judge_match.group(1).strip()
-                    name = judge_match.group(2).strip()
-                    details["control_judges"].append({"name": name, "role": role})
+                self._parse_control_judges(tr, details)
+                continue # Move to next row after processing judge details
 
             # Process distances (only for future events)
-            elif "Distances" in td_text and not is_past: # Added 'and not is_past' condition
-                distances_text = td_text.replace("Distances", "").replace(":", "").strip()
-
-                # Split by commas or "and"
-                distance_parts = [d.strip() for d in re.split(r',|\s+and\s+', distances_text) if d.strip()]
-
-                # Process each distance entry
-                for dist in distance_parts:
-                    # Initialize distance object with default date
-                    distance_obj = {
-                        "distance": "",
-                        "date": default_date,
-                        "start_time": "00:00"  # Provide a default start_time
-                    }
-
-                    # Extract distance value (e.g., "50", "100")
-                    dist_match = re.search(r'(\d+)(?:\s*mi(?:les)?)?', dist)
-                    if dist_match:
-                        distance_value = dist_match.group(1)
-                        distance_obj["distance"] = distance_value
-
-                        # Look for "mi" or "miles" and include in the distance
-                        if "mi" in dist or "miles" in dist:
-                            distance_obj["distance"] = f"{distance_value} miles"
-                    else:
-                        continue  # Skip if no distance found
-
-                    # Check for specific date in the distance description (e.g., "May 1")
-                    date_match = re.search(r'\(((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:,?\s+\d{4})?)\)', dist)
-                    if date_match:
-                        date_text = date_match.group(1)
-                        try:
-                            # If the matched date doesn't include a year, add the year from default_date
-                            if not re.search(r'\d{4}', date_text):
-                                year = default_date.split('-')[0] if default_date else "2025"
-                                date_text += f", {year}"
-
-                            parsed_date = parse_date(date_text)
-                            distance_obj["date"] = parsed_date
-                        except ValueError:
-                            # If parsing fails, keep the default date
-                            self.logging_manager.warning(f"Could not parse date from distance: {date_text}")
-
-                    # Try to extract start time if present
-                    time_match = re.search(r'(\d{1,2}(?::\d{2})?\s*(?:am|pm))', dist.lower())
-                    if time_match:
-                        distance_obj["start_time"] = time_match.group(1)
-
-                    details["distances"].append(distance_obj)
+            elif "Distances" in td_text:
+                self._parse_distances(tr, details, default_date)
+                continue # Move to next row after processing distances
 
             # Process description (common to past and future)
             elif "Description" in td_text:
-                desc_match = re.search(r"Description\s*:(.*?)(?:Directions|$)", td_text, re.DOTALL)
-                if desc_match:
-                    details["description"] = desc_match.group(1).strip()
+                self._parse_description_directions(tr, details)
+                continue # Skip further checks if description found
 
             # Process directions (common to past and future)
             elif "Directions" in td_text:
-                dir_match = re.search(r"Directions\s*:(.*)", td_text, re.DOTALL)
-                if dir_match:
-                    details["directions"] = dir_match.group(1).strip()
+                self._parse_description_directions(tr, details)
+                # No continue here, allow loop to finish in case of unexpected row structure
 
         # If it's a past event, clear the distances list as we didn't populate it meaningfully
         if is_past:
@@ -561,77 +662,6 @@ class AERCScraper(BaseScraper):
 
         return False
 
-    def _determine_multi_day_and_pioneer(
-        self, distances: List[Dict[str, Any]], date_start: str
-    ) -> Tuple[bool, bool, int, str]:
-        """
-        Determine if event is multi-day/pioneer and calculate ride days.
-
-        Args:
-            distances (List[Dict[str, Any]]): List of distances with their dates
-            date_start (str): Start date of the event
-
-        Returns:
-            Tuple[bool, bool, int, str]: (is_multi_day_event, is_pioneer_ride, ride_days, date_end)
-        """
-        # Default values
-        is_multi_day_event = False
-        is_pioneer_ride = False
-        ride_days = 1
-        date_end = date_start
-
-        # If there are no distances, use default values
-        if not distances:
-            return is_multi_day_event, is_pioneer_ride, ride_days, date_end
-
-        # Get unique dates from distances
-        unique_dates = set()
-        for distance in distances:
-            if "date" in distance and distance["date"]:
-                unique_dates.add(distance["date"])
-
-        self.logging_manager.debug(f"Found unique dates in distances: {unique_dates}")
-
-        # If there's only one date, it's a single-day event
-        if len(unique_dates) <= 1:
-            return is_multi_day_event, is_pioneer_ride, ride_days, date_end
-
-        # It's a multi-day event
-        is_multi_day_event = True
-
-        # Calculate ride days based on dates range
-        date_list = sorted(list(unique_dates))
-        date_end = date_list[-1]  # Latest date
-
-        self.logging_manager.debug(f"Multi-day event detected with dates: {date_list}")
-
-        # Convert to datetime objects to calculate days difference
-        try:
-            start_dt = datetime.strptime(date_start, "%Y-%m-%d")
-            end_dt = datetime.strptime(date_end, "%Y-%m-%d")
-            ride_days = (end_dt - start_dt).days + 1
-        except (ValueError, TypeError):
-            # If there's an error in date calculation, default to the length of unique dates
-            ride_days = len(unique_dates)
-            self.logging_manager.warning(f"Error calculating days difference, using {ride_days} from unique dates")
-
-        # DEBUG: Print the date calculation
-        self.logging_manager.debug(f"Date calculation: {date_start} to {date_end} = {ride_days} days")
-
-        # Check for pioneer ride (3 or more days)
-        # Ensure ride_days is at least 3 for pioneer rides
-        if ride_days >= 3:
-            is_pioneer_ride = True
-            self.logging_manager.debug(f"Setting is_pioneer_ride=True because ride_days={ride_days} >= 3")
-        else:
-            # Ensure is_pioneer_ride is False if ride_days < 3
-            is_pioneer_ride = False
-            self.logging_manager.debug(f"Setting is_pioneer_ride=False because ride_days={ride_days} < 3")
-
-        self.logging_manager.debug(f"Event details - multi-day: {is_multi_day_event}, pioneer: {is_pioneer_ride}, days: {ride_days}, start: {date_start}, end: {date_end}")
-
-        return is_multi_day_event, is_pioneer_ride, ride_days, date_end
-
     def get_html(self, url: str) -> str:
         """
         Retrieve HTML content from the AERC calendar URL with proper headers.
@@ -661,11 +691,11 @@ class AERCScraper(BaseScraper):
         key = f"html_content_{url}"
         cached_html = self.cache.get(key)
         if cached_html:
-            self.metrics_manager.increment('cache_hits')
+            # self.metrics_manager.increment('cache_hits') # Moved to Cache.get()
             self.logging_manager.info(f"Cache hit for URL: {url}", emoji=":rocket:")
             return cached_html
         else:
-            self.metrics_manager.increment('cache_misses')
+            # self.metrics_manager.increment('cache_misses') # Moved to Cache.get()
             self.logging_manager.info(f"Cache miss for URL: {url}, fetching...", emoji=":hourglass:")
             try:
                 response = requests.get(url, headers=headers, timeout=30)

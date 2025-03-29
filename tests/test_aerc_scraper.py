@@ -118,10 +118,6 @@ def test_extract_event_data(scraper, sample_html):
         assert "event_type" in event
         assert "has_intro_ride" in event
         assert "source" in event
-        assert "is_multi_day_event" in event
-        assert "is_pioneer_ride" in event
-        assert "ride_days" in event
-        assert "date_end" in event
         assert "city" in event
         assert "state" in event
         assert "country" in event
@@ -132,10 +128,6 @@ def test_extract_event_data(scraper, sample_html):
             found_past_event = True
             assert event["name"] == "Barefoot In New Mexico"
             assert event["date_start"] == "2024-12-01"
-            assert event["date_end"] == "2024-12-01" # Should default to start date
-            assert event["is_multi_day_event"] is False
-            assert event["is_pioneer_ride"] is False
-            assert event["ride_days"] == 1
             assert event["distances"] == [] # Explicitly check distances are empty
             assert "results_by_distance" not in event # Ensure results field is NOT present
             assert "is_past_event" not in event # Ensure is_past_event field is NOT present

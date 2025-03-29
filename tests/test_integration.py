@@ -7,6 +7,8 @@ from app.database import DatabaseManager
 from app.data_validator import DataValidator
 from app.base_scraper import BaseScraper
 from app.exceptions import ValidationError
+from bs4 import BeautifulSoup
+from typing import Any
 
 
 @pytest.fixture
@@ -52,6 +54,13 @@ class TestScraper(BaseScraper):
 
     def extract_all_events(self):
         """Mock event extraction."""
+        return []
+
+    def extract_event_data(self, soup: BeautifulSoup) -> list[dict[str, Any]]:
+        """Minimal implementation for testing BaseScraper."""
+        # Required by the BaseScraper ABC
+        # Integration tests typically mock the overall scrape/
+        # extract_all_events process rather than needing this.
         return []
 
     def scrape(self):

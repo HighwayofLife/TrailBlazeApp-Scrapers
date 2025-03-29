@@ -20,6 +20,13 @@ class TestScraper(BaseScraper):
         events = [{"ride_id": "test123", "name": "Test Event"}]
         return self._consolidate_events(events)
 
+    def extract_event_data(self, soup: BeautifulSoup) -> list[dict[str, Any]]:
+        """Minimal implementation for testing BaseScraper."""
+        # This needs to be implemented for the TestScraper to be instantiated.
+        # For most BaseScraper tests, the actual content doesn't matter.
+        # Tests specifically needing extracted data should mock this method.
+        return []
+
 
 @pytest.fixture
 def scraper():
@@ -101,6 +108,7 @@ def test_parse_html(scraper, sample_html):
     """Test HTML parsing."""
     result = scraper.parse_html(sample_html)
     assert isinstance(result, BeautifulSoup)
+    assert result.div is not None, "Div tag not found in parsed HTML"
     assert str(result.div.string) == "Test content"
 
 
