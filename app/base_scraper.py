@@ -55,6 +55,26 @@ class BaseScraper(abc.ABC):
         self.metrics_manager.reset_event_metrics()
         # Concrete implementations should call get_html, parse_html, and display_metrics
 
+    @abc.abstractmethod
+    def extract_event_data(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
+        """
+        Extract structured event data from the parsed HTML (BeautifulSoup object).
+
+        This method should find all relevant event entries within the HTML
+        and parse them into a list of dictionaries, where each dictionary
+        represents one event (or event part, before consolidation).
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML document
+
+        Returns:
+            List[Dict[str, Any]]: List of dictionaries, one for each event row/entry found
+
+        Raises:
+            DataExtractionError: If critical data cannot be extracted
+        """
+        pass
+
     def get_html(self, url: str) -> str:
         """
         Retrieve HTML content from URL, using cache if available and valid.

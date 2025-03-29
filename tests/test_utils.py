@@ -4,6 +4,13 @@ import pytest
 from datetime import datetime
 from app.utils import parse_date, parse_time, extract_city_state_country, generate_file_name
 
+# Helper to compare expected time without date part
+def assert_time_equal(dt1, dt2):
+    """Assert that two datetime objects are equal, ignoring the date part."""
+    assert dt1.hour == dt2.hour
+    assert dt1.minute == dt2.minute
+    assert dt1.second == dt2.second
+    assert dt1.microsecond == dt2.microsecond
 
 def test_parse_date_standard_format():
     """Test parsing date in standard format."""
@@ -49,8 +56,8 @@ def test_parse_time_alternate_formats():
     ]
     for time_string, expected in test_cases:
         result = parse_time(time_string)
-        assert result.hour == expected.hour
-        assert result.minute == expected.minute
+        # Use helper for comparison
+        assert_time_equal(result, expected)
 
 
 def test_parse_time_invalid():
@@ -59,27 +66,49 @@ def test_parse_time_invalid():
         parse_time("invalid time")
 
 
-def test_extract_city_state_country():
-    """Test extracting location components."""
-    test_cases = [
-        (
-            "Las Colinas Ranch, Wickenburg, AZ",
-            ("Las Colinas Ranch", "Wickenburg", "AZ", "USA")
-        ),
-        (
-            "Durham Forest, Durham, ON",
-            ("Durham Forest", "Durham", "ON", "Canada")
-        )
+# New comprehensive, parameterized test for extract_city_state_country
+@pytest.mark.parametrize(
+    "location_string, expected_city, expected_state, expected_country",
+    [
+        # Standard US formats
+        ("Cityville, CA", "Cityville", "CA", "USA"),
+        ("Some Place, Cityville, CA", "Cityville", "CA", "USA"),
+        ("123 Main St, Cityville, CA", "Cityville", "CA", "USA"),
+        ("Venue Name, Cityville, CA", "Cityville", "CA", "USA"),
+        ("Cityville CA", "Cityville", "CA", "USA"), # No comma
+        ("  Cityville,  CA  ", "Cityville", "CA", "USA"), # Extra spaces
+        ("Cityville, California", None, "California", "USA"), # Full state name - current logic might not handle well
+        ("Anytown, USA", "Anytown", None, "USA"), # No state
+
+        # Canadian formats
+        ("Townsborough, ON", "Townsborough", "ON", "Canada"),
+        ("The Ranch, Townsborough, ON", "Townsborough", "ON", "Canada"),
+        ("Townsborough ON", "Townsborough", "ON", "Canada"),
+        ("Maple Creek, SK, Canada", "Maple Creek", "SK", "Canada"), # Explicit country
+        ("Maple Creek, SK Canada", "Maple Creek", "SK", "Canada"), # Explicit country, no comma
+        ("National Park, Somewhere, AB", "Somewhere", "AB", "Canada"),
+
+        # Edge cases and tricky formats
+        ("Only City", "Only City", None, "USA"),
+        ("TX", None, "TX", "USA"), # Only state
+        ("BC", None, "BC", "Canada"), # Only province
+        ("", None, None, "USA"), # Empty string
+        (None, None, None, "USA"), # None input
+        ("New York, NY Click Here for Directions via Google Maps", "New York", "NY", "USA"), # With map link
+        ("St. Louis, MO, ", "St. Louis", "MO", "USA"), # Trailing comma
+        (", , St. Louis, MO, ,", "St. Louis", "MO", "USA"), # Extra commas
+        ("52 San Tomaso Rd, Alamogordo NM", "Alamogordo", "NM", "USA"), # Address, City State (from comments)
+        ("Address Line 1, Address Line 2, Real City, NC", "Real City", "NC", "USA"), # Multi-line address
+        ("City With Space, CA", "City With Space", "CA", "USA"),
+        ("City With Space CA", "City With Space", "CA", "USA"),
     ]
-    for location_string, expected in test_cases:
-        city, state, country = extract_city_state_country(location_string)
-        assert (city, state, country) == expected[1:]
-
-
-def test_extract_city_state_country_incomplete():
-    """Test extracting location with missing components."""
-    result = extract_city_state_country("Wickenburg, AZ")
-    assert result == ("Wickenburg", "AZ", "USA")
+)
+def test_extract_city_state_country_comprehensive(location_string, expected_city, expected_state, expected_country):
+    """Test extracting location components with various formats."""
+    city, state, country = extract_city_state_country(location_string)
+    assert city == expected_city
+    assert state == expected_state
+    assert country == expected_country
 
 
 def test_generate_file_name():
