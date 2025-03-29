@@ -1,16 +1,13 @@
 """AERC-specific scraper implementation for the TrailBlazeApp-Scrapers project."""
 
 import re
-import unicodedata
 from datetime import datetime
-from typing import Dict, List, Tuple, Any, Optional, Union
-from bs4 import BeautifulSoup, Tag
-from bs4.element import PageElement
+from typing import Dict, List, Tuple, Any, Optional
+from bs4 import BeautifulSoup
 import requests
 
 from app.base_scraper import BaseScraper
-from app.utils import parse_date, extract_city_state_country, generate_file_name
-from app.logging_manager import LoggingManager
+from app.utils import parse_date, extract_city_state_country
 from app.exceptions import HTMLDownloadError
 
 
@@ -84,9 +81,7 @@ class AERCScraper(BaseScraper):
                 has_intro_ride = self._determine_has_intro_ride(row)
 
                 # Get detailed event information
-                details = self._extract_details(row)
-
-                # Combine all extracted information
+                details, is_past = self._extract_details(row)
                 event_data.update({
                     "name": name,
                     "ride_id": ride_id,
@@ -105,17 +100,29 @@ class AERCScraper(BaseScraper):
                 # Update with details
                 event_data.update(details)
 
-                # Determine multi-day event and pioneer status based on distances
-                is_multi_day, is_pioneer, ride_days, date_end = self._determine_multi_day_and_pioneer(
-                    event_data.get("distances", []), date_start
-                )
-
-                event_data.update({
-                    "is_multi_day_event": is_multi_day,
-                    "is_pioneer_ride": is_pioneer,
-                    "ride_days": ride_days,
-                    "date_end": date_end
-                })
+                if is_past:
+                    self.logging_manager.info(
+                        f"Past event detected (Ride ID: {ride_id}). Skipping results parsing for DB compatibility.",
+                        emoji=":calendar:"
+                    )
+                    # Set default values for past events as we are skipping results/detailed distance parsing
+                    event_data.update({
+                        "is_multi_day_event": False,
+                        "is_pioneer_ride": False,
+                        "ride_days": 1,
+                        "date_end": date_start # Date end is same as start for non-multi-day
+                    })
+                else:
+                    # Determine multi-day event and pioneer status based on distances (only for future events)
+                    is_multi_day, is_pioneer, ride_days, date_end = self._determine_multi_day_and_pioneer(
+                        event_data.get("distances", []), date_start
+                    )
+                    event_data.update({
+                        "is_multi_day_event": is_multi_day,
+                        "is_pioneer_ride": is_pioneer,
+                        "ride_days": ride_days,
+                        "date_end": date_end
+                    })
 
                 # Extract city, state, country from location
                 city, state, country = extract_city_state_country(location_name)
@@ -250,21 +257,28 @@ class AERCScraper(BaseScraper):
             str: Ride manager's name
         """
         # First try to get from details section since it's more structured
-        details_info = self._extract_details(calendar_row)
-        if details_info.get("ride_manager"):
-            return details_info["ride_manager"]
+        # Call _extract_details and get the dictionary part of the tuple
+        details_info_dict, _ = self._extract_details(calendar_row)
+        if details_info_dict.get("ride_manager"):
+            return details_info_dict["ride_manager"]
 
         # If not found in details, try the main calendar row
-        manager_tr = calendar_row.find("tr", class_="fix-jumpy")
+        # Find the third tr.fix-jumpy row which usually contains manager info
+        fix_jumpy_rows = calendar_row.find_all("tr", class_="fix-jumpy")
+        manager_tr = fix_jumpy_rows[2] if len(fix_jumpy_rows) > 2 else None
+
         if manager_tr:
-            manager_td = manager_tr.find(lambda tag: tag.name == "td" and "mgr:" in tag.text)
+            # Find the td containing "mgr:"
+            manager_td = manager_tr.find(lambda tag: tag.name == "td" and "mgr:" in tag.get_text())
             if manager_td:
-                mgr_text = manager_td.text.strip()
+                mgr_text = manager_td.get_text(strip=True)
                 # Extract just the name before any comma, phone, or email
                 manager_match = re.search(r"mgr:\s*([^,(]*)", mgr_text)
                 if manager_match:
                     return manager_match.group(1).strip()
 
+        # Fallback if not found in standard places
+        self.logging_manager.warning("Could not extract manager name.", ":person_shrugging:")
         return "Unknown"
 
     def _extract_website_flyer(self, calendar_row: Any) -> Tuple[Optional[str], Optional[str]]:
@@ -311,25 +325,29 @@ class AERCScraper(BaseScraper):
 
         return website_url, flyer_url
 
-    def _extract_details(self, calendar_row: Any) -> Dict[str, Any]:
+    def _extract_details(self, calendar_row: Any) -> Tuple[Dict[str, Any], bool]:
         """
         Extract detailed event information from the expanded details section.
+        Detects if the event is a past event based on results data.
 
         Args:
             calendar_row (Any): BeautifulSoup element representing a calendar row
 
         Returns:
-            Dict[str, Any]: Dictionary containing all detailed event information
+            Tuple[Dict[str, Any], bool]: Dictionary containing detailed event information
+                                        and a boolean flag indicating if it's a past event.
         """
         details = {
             "control_judges": [],
-            "distances": [],
+            "distances": [], # Will remain empty for past events for now
             "description": None,
             "directions": None,
             "manager_email": None,
             "manager_phone": None,
             "ride_manager": None
+            # NOTE: results_by_distance is intentionally omitted from this dict
         }
+        is_past = False # Flag to indicate if this is a past event
 
         # Find the ride ID
         ride_id = None
@@ -347,12 +365,22 @@ class AERCScraper(BaseScraper):
             details_tr = calendar_row.find("tr", class_="toggle-ride-dets")
 
         if not details_tr:
-            return details
+            return details, is_past
 
         # Find the detail data table
         detail_table = details_tr.find("table", class_="detailData")
         if not detail_table:
-            return details
+            # Check if this is because it's a past event (indicated by "* Results *" link)
+            results_link = calendar_row.find("span", class_="details", string=lambda s: s and "* Results *" in s)
+            if results_link:
+                self.logging_manager.debug(f"Detected past event by '* Results *' link for ride_id: {ride_id}")
+                is_past = True
+                # Attempt to find the details table again, it might be there even with results link
+                detail_table = details_tr.find("table", class_="detailData")
+                if not detail_table:
+                    return details, is_past # Return early if no details table found for past event
+            else:
+                return details, is_past # Return early if no details table found
 
         # Get the default date from the calendar row
         default_date = None
@@ -362,9 +390,37 @@ class AERCScraper(BaseScraper):
 
         # Process each row in the detail table
         for tr in detail_table.find_all("tr"):
+            tds = tr.find_all("td")
             td_text = tr.get_text().strip()
 
-            # Process manager info
+            # Check for indicators of a past event's results section
+            # Check for links like '.../rides-ride-result/?distance=...'
+            results_links = tr.find_all("a", href=lambda href: href and "rides-ride-result" in href)
+            if results_links:
+                is_past = True
+                self.logging_manager.debug(f"Detected past event by results link for ride_id: {ride_id}")
+                # Attempt to extract minimal distance info from results row for context, but don't store full results
+                try:
+                    distance_text = tds[0].get_text(strip=True) if tds else "" # Might contain distance like '50 mi'
+                    date_text = tds[1].get_text(strip=True) if len(tds) > 1 else "" # Contains date and time
+                    results_info_text = tds[2].get_text(strip=True) if len(tds) > 2 else "" # Contains starters/finishers
+
+                    # Try parsing basic distance info if needed later, but for now, skip adding to details['distances']
+                    # Example: dist_match = re.search(r'(\d+)', distance_text)
+                    # Example: date = parse_date(...) from date_text
+                    # Example: start_time = re.search(...) from date_text
+
+                    # Skip parsing the rest of this row as it's results data we're not storing yet
+                    continue
+                except Exception as e:
+                    self.logging_manager.warning(f"Could not parse basic info from results row: {td_text} - Error: {e}")
+                    continue # Move to next row
+
+            # If already identified as past, skip standard distance processing
+            if is_past and "Distances" in td_text:
+                continue
+
+            # Process manager info (common to past and future)
             if "Ride Manager" in td_text:
                 # Extract manager name - everything before the first parenthesis or comma
                 manager_match = re.search(r"Ride Manager\s*:\s*([^,(]*)", td_text)
@@ -381,7 +437,7 @@ class AERCScraper(BaseScraper):
                 if email_match:
                     details["manager_email"] = email_match.group(1).strip()
 
-            # Process control judges
+            # Process control judges (common to past and future)
             elif "Control Judge" in td_text:
                 judge_match = re.search(r"(.*Control Judge)\s*:\s*(.*)", td_text)
                 if judge_match:
@@ -389,8 +445,8 @@ class AERCScraper(BaseScraper):
                     name = judge_match.group(2).strip()
                     details["control_judges"].append({"name": name, "role": role})
 
-            # Process distances
-            elif "Distances" in td_text:
+            # Process distances (only for future events)
+            elif "Distances" in td_text and not is_past: # Added 'and not is_past' condition
                 distances_text = td_text.replace("Distances", "").replace(":", "").strip()
 
                 # Split by commas or "and"
@@ -440,19 +496,23 @@ class AERCScraper(BaseScraper):
 
                     details["distances"].append(distance_obj)
 
-            # Process description
+            # Process description (common to past and future)
             elif "Description" in td_text:
                 desc_match = re.search(r"Description\s*:(.*?)(?:Directions|$)", td_text, re.DOTALL)
                 if desc_match:
                     details["description"] = desc_match.group(1).strip()
 
-            # Process directions
+            # Process directions (common to past and future)
             elif "Directions" in td_text:
                 dir_match = re.search(r"Directions\s*:(.*)", td_text, re.DOTALL)
                 if dir_match:
                     details["directions"] = dir_match.group(1).strip()
 
-        return details
+        # If it's a past event, clear the distances list as we didn't populate it meaningfully
+        if is_past:
+            details["distances"] = []
+
+        return details, is_past
 
     def _determine_event_type(self, calendar_row: Any) -> str:
         """

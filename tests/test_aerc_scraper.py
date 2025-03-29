@@ -106,11 +106,46 @@ def test_extract_event_data(scraper, sample_html):
     assert len(events) > 0
 
     # Validate structure of extracted events
+    found_past_event = False
     for event in events:
         assert "name" in event
         assert "ride_id" in event
         assert "date_start" in event
         assert "is_canceled" in event
+        # Standard fields expected for ALL events
+        assert "location_name" in event
+        assert "ride_manager" in event
+        assert "event_type" in event
+        assert "has_intro_ride" in event
+        assert "source" in event
+        assert "is_multi_day_event" in event
+        assert "is_pioneer_ride" in event
+        assert "ride_days" in event
+        assert "date_end" in event
+        assert "city" in event
+        assert "state" in event
+        assert "country" in event
+        assert "distances" in event # Should be present, even if empty for past events
+
+        # Specific checks for the known past event
+        if event.get("ride_id") == "14446": # Barefoot In New Mexico
+            found_past_event = True
+            assert event["name"] == "Barefoot In New Mexico"
+            assert event["date_start"] == "2024-12-01"
+            assert event["date_end"] == "2024-12-01" # Should default to start date
+            assert event["is_multi_day_event"] is False
+            assert event["is_pioneer_ride"] is False
+            assert event["ride_days"] == 1
+            assert event["distances"] == [] # Explicitly check distances are empty
+            assert "results_by_distance" not in event # Ensure results field is NOT present
+            assert "is_past_event" not in event # Ensure is_past_event field is NOT present
+            assert event["ride_manager"] == "Marcelle Hughes"
+            assert event["location_name"] == "52 San Tomaso Rd., Alamogordo NM"
+            assert event["city"] == "Alamogordo"
+            assert event["state"] == "NM"
+            assert event["country"] == "USA"
+
+    assert found_past_event, "Did not find the expected past event (ride_id 14446) in extracted data"
 
 
 def test_helper_functions(scraper, sample_html):

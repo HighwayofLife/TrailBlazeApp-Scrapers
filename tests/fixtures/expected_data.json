@@ -167,5 +167,66 @@
         "control_judges": [
             {"name": "Dave Nicholson", "role": "Control Judge"}
         ]
+    },
+    "barefoot_nm_past_event.html": {
+        "name": "Barefoot In New Mexico",
+        "source": "AERC",
+        "event_type": "endurance",
+        "date_start": "2024-12-01",
+        "date_end": "2024-12-01",
+        "location_name": "52 San Tomaso Rd., Alamogordo NM",
+        "region": "SW",
+        "is_canceled": false,
+        "is_multi_day_event": false,
+        "is_pioneer_ride": false,
+        "ride_days": 1,
+        "ride_manager": "Marcelle Hughes",
+        "manager_phone": "575-491-6297",
+        "manager_email": "giddyuppony@icloud.com",
+        "website": null,
+        "flyer_url": null,
+        "has_intro_ride": true,
+        "ride_id": "14446",
+        "latitude": null,
+        "longitude": null,
+        "city": "Alamogordo",
+        "state": "NM",
+        "country": "USA",
+        "distances": [
+                {"distance": "25 miles"},
+                {"distance": "50 miles"}
+        ],
+        "map_link": null,
+        "control_judges": [
+            {"name": "Linda Locklar", "role": "Control Judge"}
+        ],
+        "description": null,
+        "directions": null,
+        "is_past_event": true,
+        "results_by_distance": [
+            {
+                "distance_result_id": "37388",
+                "results_url": "https://aerc.org/membership/rides-ride-result/?distance=37388",
+                "date": "2024-12-01",
+                "start_time": "06:30",
+                "starters": 7,
+                "finishers": 5,
+                "pulls_metabolic": 0,
+                "pulls_lameness": 0,
+                "pulls_rider_option": 2
+            },
+            {
+                "distance_result_id": "37389",
+                "results_url": "https://aerc.org/membership/rides-ride-result/?distance=37389",
+                "date": "2024-12-01",
+                "start_time": "06:00",
+                "starters": 9,
+                "finishers": 9,
+                "pulls_metabolic": 0,
+                "pulls_lameness": 0,
+                "pulls_rider_option": 0
+            }
+        ]
     }
+
 }
