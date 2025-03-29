@@ -55,6 +55,24 @@ def sample_events():
             "name": "Test Event",
             "date_start": "2025-03-21",
             "distances": [{"distance": "75", "date": "2025-03-21"}]
+        },
+        {
+            "ride_id": "456", # Pioneer ride
+            "name": "Pioneer Event",
+            "date_start": "2025-04-10",
+            "distances": [{"distance": "50", "date": "2025-04-10"}]
+        },
+        {
+            "ride_id": "456",
+            "name": "Pioneer Event",
+            "date_start": "2025-04-11",
+            "distances": [{"distance": "50", "date": "2025-04-11"}]
+        },
+        {
+            "ride_id": "456",
+            "name": "Pioneer Event",
+            "date_start": "2025-04-12",
+            "distances": [{"distance": "50", "date": "2025-04-12"}]
         }
     ]
 
@@ -113,16 +131,30 @@ def test_parse_html(scraper, sample_html):
 
 
 def test_consolidate_events(scraper, sample_events):
-    """Test event consolidation."""
+    """Test event consolidation, including multi-day and pioneer rides."""
     result = scraper._consolidate_events(sample_events)
 
     assert isinstance(result, dict)
+
+    # Check standard multi-day event (2 days)
     assert "123" in result
-    assert len(result["123"]["distances"]) == 2
-    assert result["123"]["is_multi_day_event"] is True
-    assert result["123"]["date_start"] == "2025-03-20"
-    assert result["123"]["date_end"] == "2025-03-21"
-    assert result["123"]["ride_days"] == 2
+    event_123 = result["123"]
+    assert len(event_123["distances"]) == 2
+    assert event_123["is_multi_day_event"] is True
+    assert event_123["is_pioneer_ride"] is False # Explicitly check pioneer is False for 2 days
+    assert event_123["date_start"] == "2025-03-20"
+    assert event_123["date_end"] == "2025-03-21"
+    assert event_123["ride_days"] == 2
+
+    # Check pioneer event (3 days)
+    assert "456" in result
+    event_456 = result["456"]
+    assert len(event_456["distances"]) == 3
+    assert event_456["is_multi_day_event"] is True
+    assert event_456["is_pioneer_ride"] is True # Explicitly check pioneer is True for 3 days
+    assert event_456["date_start"] == "2025-04-10"
+    assert event_456["date_end"] == "2025-04-12"
+    assert event_456["ride_days"] == 3
 
 
 def test_create_final_output(scraper):
