@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional, List, Union
 from contextlib import contextmanager
 import psycopg2
 from psycopg2.extras import Json
+from psycopg2 import pool # Import the pool module
 from app.logging_manager import get_logger
 
 
@@ -26,52 +27,63 @@ class DatabaseManager:
         """
         self.db_config = db_config
         self.scraper = scraper # Store scraper instance
-        self._connection_pool = None
+        self._connection_pool: Optional[psycopg2.pool.SimpleConnectionPool] = None
         self.logger = get_logger(__name__).logger # Use LoggingManager logger
-        self._create_connection_pool()
-
-    def close_connection(self) -> None:
-        """
-        Closes the database connection.
-
-        Should be called when the DatabaseManager is no longer needed to free up resources.
-        """
-        if self._connection_pool is not None:
-            self._connection_pool.closeall()
-            self.logger.info("Database connections closed")
-
-    @contextmanager
-    def connection(self):
-        """
-        Context manager for database connections.
-
-        Creates a new connection, yields it for use in a with block, and ensures
-        proper cleanup of resources when the block exits, even if an exception occurs.
-
-        Yields:
-            connection: Database connection object
-
-        Raises:
-            Exception: If connection creation fails
-        """
-        conn = None
         try:
-            # Use directly the db_config with proper keys for PostgreSQL
-            # Expected keys: host, port, dbname, user, password
-            conn = psycopg2.connect(
+            self._create_connection_pool()
+        except Exception as e:
+            self.logger.error(f"Failed to create database connection pool: {e}")
+            # Depending on requirements, might want to raise here or handle differently
+
+    def _create_connection_pool(self) -> None:
+        """Initialize the database connection pool."""
+        if self._connection_pool is None:
+            self.logger.info("Creating database connection pool...")
+            # TODO: Make minconn/maxconn configurable via config
+            minconn = 1
+            maxconn = 5
+            self._connection_pool = pool.SimpleConnectionPool(
+                minconn,
+                maxconn,
                 host=self.db_config.get('host', 'localhost'),
                 port=self.db_config.get('port', 5432),
                 dbname=self.db_config.get('database'),
                 user=self.db_config.get('user'),
                 password=self.db_config.get('password')
             )
+            self.logger.info(f"Connection pool created (min={minconn}, max={maxconn})")
+
+    def close_pool(self) -> None: # Renamed from close_connection for clarity
+        """Closes all connections in the database pool."""
+        if self._connection_pool is not None:
+            self._connection_pool.closeall()
+            self.logger.info("Database connection pool closed")
+            self._connection_pool = None # Reset pool variable
+
+    @contextmanager
+    def connection(self):
+        """Context manager providing a connection from the pool."""
+        if self._connection_pool is None:
+            self.logger.error("Connection pool is not initialized.")
+            raise RuntimeError("Database connection pool not initialized.")
+
+        conn = None
+        try:
+            conn = self._connection_pool.getconn()
             yield conn
         except Exception as e:
-            self.logger.error(f"Database connection error: {str(e)}")
-            raise
+            self.logger.error(f"Error getting connection from pool or during query: {e}")
+            # Rollback if connection exists and there was an error during yield
+            if conn is not None:
+                try:
+                    conn.rollback() # Ensure transaction consistency on error
+                except Exception as rb_exc:
+                    self.logger.error(f"Error during rollback: {rb_exc}")
+            raise # Re-raise the original exception
         finally:
             if conn is not None:
-                conn.close()
+                # Return the connection to the pool
+                self._connection_pool.putconn(conn)
 
     def insert_or_update_event(self, event_data: Dict[str, Any]) -> bool:
         """
@@ -445,14 +457,3 @@ class DatabaseManager:
 
         self._execute_query(create_table_query)
         self.logger.info("Events table created or already exists")
-
-    def _create_connection_pool(self) -> None:
-        """
-        Create a connection pool for database connections.
-
-        This is a placeholder for future implementation of connection pooling.
-        Currently, connections are created as needed via the connection() context manager.
-        """
-        # This is a placeholder for future connection pooling implementation
-        # For now, connections are created as needed via the connection() context manager
-        self.logger.info("Database connection setup complete")

@@ -169,6 +169,8 @@ class BaseScraper(abc.ABC):
                     multi_day_events[ride_id] = {
                         "days": set([event.get("date_start")])
                     }
+                # Ensure pioneer flag is initialized
+                consolidated[ride_id]["is_pioneer_ride"] = False
             else:
                 # This is a multi-day event that needs consolidation
                 self.logging_manager.debug(f"Found multi-day event with ride_id: {ride_id}", ":date:")
@@ -187,6 +189,8 @@ class BaseScraper(abc.ABC):
         for ride_id, event in consolidated.items():
             if ride_id in multi_day_events and len(multi_day_events[ride_id]["days"]) > 1:
                 event["is_multi_day_event"] = True
+                # Initialize pioneer flag before potentially setting it to True
+                event["is_pioneer_ride"] = False
 
                 # Update ride days count
                 days = sorted(list(multi_day_events[ride_id]["days"]))

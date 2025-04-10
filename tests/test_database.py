@@ -5,6 +5,7 @@ import os
 import pytest
 from unittest.mock import MagicMock, patch
 from app.database import DatabaseManager
+import psycopg2.pool
 
 
 @pytest.fixture
@@ -53,15 +54,29 @@ def sample_event(expected_data):
 
 
 def test_connection_context_manager(db_manager):
-    """Test database connection context manager."""
-    with patch('psycopg2.connect') as mock_connect:
-        mock_conn = MagicMock()
-        mock_connect.return_value = mock_conn
+    """Test database connection context manager with pooling."""
+    # Mock the connection pool attribute directly on the db_manager instance
+    mock_pool = MagicMock(spec=psycopg2.pool.SimpleConnectionPool)
+    db_manager._connection_pool = mock_pool
 
+    mock_conn = MagicMock()
+    # Patch getconn and putconn on the mocked pool object
+    mock_pool.getconn.return_value = mock_conn
+
+    conn_yielded = None
+    try:
         with db_manager.connection() as conn:
-            assert conn == mock_connect.return_value
+            conn_yielded = conn
+            assert conn_yielded == mock_conn # Check the yielded connection is the mocked one
+            # Simulate some operation
+            conn_yielded.cursor()
+    finally:
+        # Ensure getconn was called
+        mock_pool.getconn.assert_called_once()
+        # Ensure putconn was called, even if an error occurred within the block
+        mock_pool.putconn.assert_called_once_with(mock_conn)
 
-        mock_conn.close.assert_called_once()
+    # We no longer check conn.close(), as the pool manages connection lifecycle
 
 
 def test_event_exists(db_manager, sample_event):
