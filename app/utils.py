@@ -127,12 +127,12 @@ def extract_city_state_country(location_string: str) -> Tuple[Optional[str], Opt
                     country = "Canada"
             else:
                  # Didn't look like "City State", maybe it's "City, State" format?
-                 city = first_part
-                 state = second_part # Treat full second part as state initially
-                 if not ((len(state) == 2 and state.isalpha()) or state in canadian_provinces):
-                     state = None # Invalid state format
-                 elif state in canadian_provinces:
-                      country = "Canada"
+                city = first_part
+                state = second_part # Treat full second part as state initially
+                if not ((len(state) == 2 and state.isalpha()) or state in canadian_provinces):
+                    state = None # Invalid state format
+                elif state in canadian_provinces:
+                    country = "Canada"
 
         elif len(city_state_split) == 1: # rsplit found no space in second_part
             # Likely "City, State" format (e.g., "Asheville, NC")
@@ -141,7 +141,7 @@ def extract_city_state_country(location_string: str) -> Tuple[Optional[str], Opt
             if not ((len(state) == 2 and state.isalpha()) or state in canadian_provinces):
                 state = None # Invalid state format
             elif state in canadian_provinces:
-                 country = "Canada"
+                country = "Canada"
 
     elif len(parts) == 1:
         # Only one part, could be City, State, "City State", etc.

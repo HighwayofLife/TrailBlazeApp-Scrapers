@@ -1,6 +1,6 @@
 """Metrics manager module for the TrailBlazeApp-Scrapers project."""
 
-from typing import Dict, List, Tuple, Optional, Literal, Union, Callable, Any
+from typing import Dict, List
 from colorama import Fore, Style, init
 from emoji import emojize
 from app.logging_manager import get_logger
@@ -143,20 +143,20 @@ class MetricsManager:
             )
         elif self.metrics["raw_event_rows"] > self.metrics["initial_events"]:
              # Log a warning instead of an error if rows were skipped (e.g. no ride_id)
-             skipped_rows = self.metrics["raw_event_rows"] - self.metrics["initial_events"]
-             if skipped_rows > 0:
-                 self.logger.warning(f"Potential discrepancy: {skipped_rows} raw rows might have been skipped before becoming initial events (e.g., missing ride_id).")
+            skipped_rows = self.metrics["raw_event_rows"] - self.metrics["initial_events"]
+            if skipped_rows > 0:
+                self.logger.warning(f"Potential discrepancy: {skipped_rows} raw rows might have been skipped before becoming initial events (e.g., missing ride_id).")
 
         # Check if database operations match final events
         # Allow for potential discrepancies if validation skips events
         final_events_count = self.metrics.get("final_events", 0)
         db_ops_count = self.metrics.get("database_inserts", 0) + self.metrics.get("database_updates", 0)
         if db_ops_count > final_events_count:
-             validation_errors.append(
-                 f"Database discrepancy: database_inserts ({self.metrics.get('database_inserts', 0)}) + "
-                 f"database_updates ({self.metrics.get('database_updates', 0)}) = {db_ops_count} > "
-                 f"final_events ({final_events_count}) - More DB operations than final events."
-             )
+            validation_errors.append(
+                f"Database discrepancy: database_inserts ({self.metrics.get('database_inserts', 0)}) + "
+                f"database_updates ({self.metrics.get('database_updates', 0)}) = {db_ops_count} > "
+                f"final_events ({final_events_count}) - More DB operations than final events."
+            )
         elif db_ops_count < final_events_count:
             skipped_db_ops = final_events_count - db_ops_count
             if skipped_db_ops > 0:

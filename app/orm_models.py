@@ -43,5 +43,5 @@ class Event(Base):
     control_judges = Column(JSON, nullable=True)
     distances = Column(JSON, nullable=True)
     directions = Column(Text, nullable=True)
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    created_at = Column(TIMESTAMP, server_default=func.now()) #pylint: disable=E1102
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now()) #pylint: disable=E1102
