@@ -14,35 +14,38 @@ TrailBlazeApp-Scrapers is a modular, extensible framework for scraping and proce
 
 ## Quickstart
 
-### 1. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Configure Environment
+### 1. Configure Environment
 
 Copy `.env.sample` to `.env` and fill in your database credentials and settings.
 
-### 3. Run the AERC Scraper
+### 2. Build and Start Docker Containers
 
 ```bash
-python app/main.py --scrapers aerc
+make build
+make up
 ```
 
-#### Common CLI Options
+### 3. Run the AERC Scraper
 
-- `--validate` : Validate that database contents match scraped data.
+Use the Makefile target to run the scraper inside the Docker container:
+
+```bash
+make scrape
+```
+
+#### Passing CLI Options
+
+You can pass any CLI options to the scraper using the `ARGS` variable. For example, to validate database contents:
+
+```bash
+make scrape ARGS="--validate"
+```
+
+Other useful options:
 - `--no-db` : Run without performing database operations.
 - `--sample` : Use a sample HTML file instead of live scraping.
 - `--sample-file <path>` : Specify a custom sample HTML file.
 - `--url <url>` : Override the default scraping URL.
-
-Example:
-
-```bash
-python app/main.py --scrapers aerc --validate
-```
 
 ### 4. View Metrics
 

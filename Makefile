@@ -30,6 +30,11 @@ up: ## Start the Docker containers in the background
 	@echo "${GREEN}✓ Docker containers started successfully${NC}"
 	@echo "${BLUE}ℹ To view logs, run:${NC} make logs"
 
+# Run the AERC scraper
+scrape: ## Run the AERC scraper inside the Docker container (pass ARGS="--validate" etc. for options)
+	docker-compose run --rm app python app/main.py --scrapers aerc $(ARGS)
+
+
 # Stop Docker containers
 down: ## Stop the Docker containers
 	@echo "${YELLOW}Stopping Docker containers...${NC}"
