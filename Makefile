@@ -32,7 +32,7 @@ up: ## Start the Docker containers in the background
 
 # Run the AERC scraper
 scrape: ## Run the AERC scraper inside the Docker container (pass ARGS="--validate" etc. for options)
-	docker-compose run --rm app python app/main.py --scrapers aerc $(ARGS)
+	docker-compose run --rm app python -m app.main --scrapers aerc $(ARGS)
 
 
 # Stop Docker containers

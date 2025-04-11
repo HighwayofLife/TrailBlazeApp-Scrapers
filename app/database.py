@@ -27,9 +27,16 @@ class DatabaseManager:
         self.db_config = db_config
         self.scraper = scraper
         self.logger = get_logger(__name__).logger
+# Validate required db_config fields
+        required_fields = ['user', 'password', 'host', 'port', 'database']
+        missing = [f for f in required_fields if not db_config.get(f)]
+        if missing:
+            self.logger.error(f"Missing required database config fields: {missing}. db_config: {db_config}")
+            print(f"Missing required database config fields: {missing}. db_config: {db_config}")
+            raise ValueError(f"Missing required database config fields: {missing}. db_config: {db_config}")
 
         # Use db_url if provided (for testing), else build from db_config
-        if db_url is not None:
+        if db_url:
             url = db_url
         elif "url" in db_config and db_config["url"]:
             url = db_config["url"]
