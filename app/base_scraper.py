@@ -6,7 +6,7 @@ from typing import Dict, List, Any, Optional
 import requests
 from bs4 import BeautifulSoup
 
-from app.logging_manager import get_logger, LoggingManager
+from app.logging_manager import get_logger
 from app.metrics_manager import MetricsManager
 from app.cache import Cache
 from app.exceptions import HTMLDownloadError, DataExtractionError, ValidationError
@@ -273,6 +273,20 @@ class BaseScraper(abc.ABC):
             Dict[str, int]: Dictionary of metric names and values
         """
         return self.metrics_manager.get_all_metrics()
+
+    def consolidate_events(self, all_events: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Consolidate events with the same ride ID into single events.
+
+        This is a public wrapper for the _consolidate_events method.
+
+        Args:
+            all_events (List[Dict[str, Any]]): List of all events before consolidation
+
+        Returns:
+            Dict[str, Any]: Dictionary of consolidated events, keyed by ride_id
+        """
+        return self._consolidate_events(all_events)
 
     def validate_event_data(self, event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """

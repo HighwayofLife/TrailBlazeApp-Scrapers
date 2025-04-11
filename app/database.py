@@ -199,8 +199,8 @@ class DatabaseManager:
             "name": event.name,
             "source": event.source,
             "event_type": event.event_type,
-            "date_start": event.date_start.isoformat() if event.date_start else None,
-            "date_end": event.date_end.isoformat() if event.date_end else None,
+            "date_start": event.date_start.isoformat() if getattr(event, 'date_start', None) else None,
+            "date_end": event.date_end.isoformat() if getattr(event, 'date_end', None) else None,
             "location_name": event.location_name,
             "city": event.city,
             "state": event.state,
@@ -224,7 +224,6 @@ class DatabaseManager:
             "control_judges": event.control_judges,
             "distances": event.distances,
             "directions": event.directions,
-            "created_at": event.created_at.isoformat() if event.created_at else None,
-            "updated_at": event.updated_at.isoformat() if event.updated_at else None,
+            "created_at": event.created_at.isoformat() if getattr(event, 'created_at', None) else None,
+            "updated_at": event.updated_at.isoformat() if event.updated_at is not None else None,
         }
-# (Removed duplicate, incomplete insert_or_update_event method.)

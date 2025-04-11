@@ -1,9 +1,7 @@
 """Cache module for storing HTML content with TTL functionality."""
 
-from typing import Any, Optional
-from cachetools import TTLCache
+from typing import Optional
 import cachetools
-import time
 
 
 class Cache:

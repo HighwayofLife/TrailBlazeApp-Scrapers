@@ -112,7 +112,7 @@ def main() -> Dict[str, Any]:
 
             # Optionally, pass scraper instance to db_manager if it needs per-scraper context (like metrics)
             if db_manager:
-                 db_manager.scraper = scraper # Link current scraper to DB manager for metrics
+                db_manager.scraper = scraper # Link current scraper to DB manager for metrics
 
             # Determine URL or sample file for this specific scraper
             scrape_url = None
@@ -131,14 +131,14 @@ def main() -> Dict[str, Any]:
                     logger.info(f"Using sample HTML file: {sample_file}")
 
                     # Read the file content
-                    with open(sample_file, 'r') as f:
+                    with open(sample_file, 'r', encoding='utf-8') as f:
                         html_content = f.read()
 
                     # Use scraper methods to parse and extract (avoiding consolidate here, do it after extraction)
                     soup = scraper.parse_html(html_content)
                     events_list = scraper.extract_event_data(soup)
                     # Consolidate events specifically for this scraper run
-                    consolidated_events = scraper._consolidate_events(events_list)
+                    consolidated_events = scraper.consolidate_events(events_list)
                     # Create final output format
                     events = scraper.create_final_output(consolidated_events)
 
@@ -148,8 +148,8 @@ def main() -> Dict[str, Any]:
                     default_url_setting = scraper_info["url_setting"]
                     scrape_url = args.url if args.url else getattr(settings, default_url_setting, None)
                     if not scrape_url:
-                         logger.error(f"Scraping URL not configured for {scraper_name} (checked Settings.{default_url_setting} and --url arg). Skipping.")
-                         continue
+                        logger.error(f"Scraping URL not configured for {scraper_name} (checked Settings.{default_url_setting} and --url arg). Skipping.")
+                        continue
 
                     logger.info(f"Starting {scraper_name.upper()} scrape from {scrape_url}...")
                     # The scrape method should handle get_html, parse_html, extract, consolidate, create_final_output
@@ -164,7 +164,7 @@ def main() -> Dict[str, Any]:
                     updated_event_count = 0
                     logger.info(f"Processing {len(events)} events from {scraper_name.upper()} for database storage...")
 
-                    for event_id, event_data in events.items():
+                    for _, event_data in events.items():
                         try:
                             db_manager.insert_or_update_event(event_data)
                             updated_event_count += 1
@@ -174,7 +174,7 @@ def main() -> Dict[str, Any]:
                                 if not success and errors:
                                     validation_errors.extend(errors)
 
-                        except Exception as e:
+                        except (KeyError, ValueError, TypeError) as e:
                             logger.error(f"Error processing event {event_data.get('source', 'unknown')}-{event_data.get('ride_id', 'unknown')}: {str(e)}")
 
                     logger.info(f"Successfully processed {updated_event_count} DB operations for {scraper_name.upper()} events")
@@ -193,7 +193,7 @@ def main() -> Dict[str, Any]:
                 # Display metrics for this scraper
                 scraper.display_metrics()
 
-            except Exception as e:
+            except (FileNotFoundError, KeyError, ValueError, TypeError) as e:
                 logger.error(f"Error during {scraper_name.upper()} scraping: {str(e)}")
                 # Optionally continue to the next scraper instead of raising immediately
                 # raise # Uncomment this to stop execution on the first scraper error
@@ -203,7 +203,7 @@ def main() -> Dict[str, Any]:
         logger.info(f"--- All scraping finished. Total unique events processed: {len(all_scraped_events)} ---")
         return all_scraped_events
 
-    except Exception as e:
+    except (FileNotFoundError, KeyError, ValueError, TypeError) as e:
         logger.critical(f"Unhandled error in main execution: {str(e)}") # Use critical for top-level errors
         raise
 
@@ -212,6 +212,6 @@ if __name__ == "__main__":
     try:
         main()
         sys.exit(0)
-    except Exception as e:
+    except (FileNotFoundError, KeyError, ValueError, TypeError) as e:
         print(f"Fatal error: {str(e)}", file=sys.stderr)
         sys.exit(1)

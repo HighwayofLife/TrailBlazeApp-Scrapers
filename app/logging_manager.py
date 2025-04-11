@@ -2,7 +2,7 @@
 
 import logging
 import sys
-from typing import Optional, Dict, Tuple, Any, Literal, Union, Callable
+from typing import Optional
 from colorama import Fore, Style, init
 from emoji import emojize
 
