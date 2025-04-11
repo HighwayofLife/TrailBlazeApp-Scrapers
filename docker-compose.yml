@@ -17,6 +17,23 @@ services:
     ports:
       - "8000:8000"  # If you have a web interface
 
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/app
+      - ./cache:/app/cache
+    env_file:
+      - .env
+    depends_on:
+      - db
+    networks:
+      - trailblaze-network
+    ports:
+      - "8001:8001"
+    command: sh -c "pip install -r mcp-requirements.txt && python -m app.mcp.server"
+
   test:
     build:
       context: .

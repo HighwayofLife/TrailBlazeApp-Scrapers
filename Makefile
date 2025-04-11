@@ -1,4 +1,4 @@
-.PHONY: build up down restart test test-dev format lint logs clean update-deps init setup-reports setup help test-docker test-docker-dev test-docker-cov
+.PHONY: build up down restart test test-dev format lint logs clean update-deps init setup-reports setup help test-docker test-docker-dev test-docker-cov mcp-server mcp-up mcp-logs
 
 # Colors for terminal output
 BLUE=\033[0;34m
@@ -140,3 +140,23 @@ setup: init setup-reports ## Setup project (initialize .env and reports director
 	@echo "  1. Edit .env file with your settings"
 	@echo "  2. Run 'make build' to build containers"
 	@echo "  3. Run 'make up' to start the application"
+
+# Start the MCP server - runs the dedicated mcp service from docker-compose.yml
+mcp-up: ## Start the Model Context Protocol server in a Docker container
+	@echo "${YELLOW}Starting MCP PostgreSQL server in a Docker container...${NC}"
+	docker-compose up -d mcp
+	@echo "${GREEN}✓ MCP server started in background${NC}"
+	@echo "${BLUE}ℹ To view logs, run:${NC} make mcp-logs"
+
+# Check MCP server logs
+mcp-logs: ## View logs for the MCP server container
+	@echo "${CYAN}Showing MCP server logs (Ctrl+C to exit)...${NC}"
+	docker-compose logs -f mcp
+
+# Run a query against MCP server to test database connection
+mcp-test: ## Test the MCP server with a simple query
+	@echo "${YELLOW}Testing MCP server database connection...${NC}"
+	curl -s -X POST http://localhost:8001/tables \
+		-H "Content-Type: application/json" \
+		-d '{"schema": "public"}' | jq
+	@echo "${GREEN}✓ MCP server connection test completed${NC}"

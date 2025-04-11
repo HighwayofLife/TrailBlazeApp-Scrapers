@@ -1,0 +1,6 @@
+{
+  "mcp": {
+    "enabled": true,
+    "endpoint": "http://localhost:8001"
+  }
+}
