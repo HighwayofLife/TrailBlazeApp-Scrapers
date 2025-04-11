@@ -193,8 +193,8 @@
         "state": "NM",
         "country": "USA",
         "distances": [
-                {"distance": "25 miles"},
-                {"distance": "50 miles"}
+            {"distance": "25 miles"},
+            {"distance": "50 miles"}
         ],
         "map_link": null,
         "control_judges": [
