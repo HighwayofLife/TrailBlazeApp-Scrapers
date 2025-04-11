@@ -26,5 +26,6 @@
     "terminal.integrated.scrollback": 10000,
     "git.enableSmartCommit": true,
     "git.autofetch": true,
-    "git.confirmSync": false
+    "git.confirmSync": false,
+    "python-envs.pythonProjects": []
 }

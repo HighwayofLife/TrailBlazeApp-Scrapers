@@ -1,0 +1,17 @@
+[flake8]
+# Ignore line length errors
+ignore = E501
+
+# Other standard settings
+max-line-length = 79
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    .eggs,
+    *.egg,
+    .env,
+    .venv,
+    env/,
+    venv/,
