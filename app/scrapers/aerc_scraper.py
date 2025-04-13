@@ -260,7 +260,7 @@ class AERCScraper(BaseScraper):
                         "is_multi_day_event": False,
                         "is_pioneer_ride": False,
                         "ride_days": 1,
-                        "date_end": date_start # Date end is same as start for non-multi-day
+                        "date_end": date_start  # Date end is same as start for non-multi-day
                     })
 
                 # Extract city, state, country from location
@@ -476,7 +476,7 @@ class AERCScraper(BaseScraper):
                                          a boolean indicating if it's likely a past event
                                          based on the '* Results *' link.
         """
-        is_past = False # Initialize is_past flag
+        is_past = False  # Initialize is_past flag
 
         # Find the ride ID to locate the details row by name attribute
         ride_id = None
@@ -495,7 +495,7 @@ class AERCScraper(BaseScraper):
 
         if not details_tr:
             self.logging_manager.debug(f"Could not find details TR for ride_id: {ride_id}")
-            return None, is_past # No details row found
+            return None, is_past  # No details row found
 
         # Find the detail data table (<table>) within the details row
         detail_table = details_tr.find("table", class_="detailData")
@@ -514,7 +514,7 @@ class AERCScraper(BaseScraper):
             else:
                 # No results link found either, definitely no table
                 self.logging_manager.debug(f"No details table found and no '* Results *' link for ride_id: {ride_id}")
-                return None, is_past # No details table found
+                return None, is_past  # No details table found
 
         # Found the detail_table, return it and the determined is_past flag
         return detail_table, is_past
@@ -673,7 +673,7 @@ class AERCScraper(BaseScraper):
         """
         details = {
             "control_judges": [],
-            "distances": [], # Will remain empty for past events for now
+            "distances": [],  # Will remain empty for past events for now
             "description": None,
             "directions": None,
             "manager_email": None,
@@ -717,7 +717,7 @@ class AERCScraper(BaseScraper):
                 try:
                     distance_text = tds[0].get_text(strip=True) if tds else "" # Might contain distance like '50 mi'
                     date_text = tds[1].get_text(strip=True) if len(tds) > 1 else "" # Contains date and time
-                    results_info_text = tds[2].get_text(strip=True) if len(tds) > 2 else "" # Contains starters/finishers
+                    results_info_text = tds[2].get_text(strip=True) if len(tds) > 2 else ""  # Contains starters/finishers
 
                     # Try parsing basic distance info if needed later, but for now, skip adding to details['distances']
                     # Example: dist_match = re.search(r'(\d+)', distance_text)
@@ -728,7 +728,7 @@ class AERCScraper(BaseScraper):
                     continue
                 except (IndexError, AttributeError, ValueError, TypeError) as e:
                     self.logging_manager.warning(f"Could not parse basic info from results row: {td_text} - Error: {e}")
-                    continue # Move to next row
+                    continue  # Move to next row
 
             # If already identified as past, skip standard distance processing
             if is_past and "Distances" in td_text:
@@ -737,22 +737,22 @@ class AERCScraper(BaseScraper):
             # Process manager info (common to past and future)
             if "Ride Manager" in td_text:
                 self._parse_manager_details(tr, details)
-                continue # Move to next row after processing manager details
+                continue  # Move to next row after processing manager details
 
             # Process control judges (common to past and future)
             elif "Control Judge" in td_text:
                 self._parse_control_judges(tr, details)
-                continue # Move to next row after processing judge details
+                continue  # Move to next row after processing judge details
 
             # Process distances (only for future events)
             elif "Distances" in td_text:
                 self._parse_distances(tr, details, default_date)
-                continue # Move to next row after processing distances
+                continue  # Move to next row after processing distances
 
             # Process description (common to past and future)
             elif "Description" in td_text:
                 self._parse_description_directions(tr, details)
-                continue # Skip further checks if description found
+                continue  # Skip further checks if description found
 
             # Process directions (common to past and future)
             elif "Directions" in td_text:
@@ -784,7 +784,7 @@ class AERCScraper(BaseScraper):
             return "competitive_trail"
         elif "limited distance" in text:
             return "limited_distance"
-        elif "ld" in text and not "old" in text.split("ld"):
+        elif "ld" in text and "old" not in text.split("ld"):
             return "limited_distance"
 
         # Default to endurance
