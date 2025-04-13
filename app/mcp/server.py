@@ -6,11 +6,10 @@ and allows AI models to interact with your database in a controlled manner.
 """
 
 import os
-import json
 from typing import Dict, Any, List, Optional, Tuple
-from fastapi import FastAPI, HTTPException, Request, Depends
-from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Depends
+from pydantic import BaseModel, Field
 import uvicorn
 
 from app.database import DatabaseManager
@@ -20,34 +19,41 @@ from app.logging_manager import get_logger
 # Initialize logger
 logger = get_logger(__name__).logger
 
+
 # Models for MCP Protocol
 class QueryRequest(BaseModel):
     """Model for a SQL query request."""
     query: str = Field(..., description="SQL query to execute")
     parameters: Optional[Dict[str, Any]] = Field(None, description="Query parameters")
 
+
 class QueryResponse(BaseModel):
     """Model for a SQL query response."""
     columns: List[str]
     rows: List[List[Any]]
 
+
 class TablesRequest(BaseModel):
     """Model for a request to list database tables."""
     schema: Optional[str] = Field(None, description="Database schema")
+
 
 class TableInfo(BaseModel):
     """Model for table information."""
     name: str
     schema: str
 
+
 class TablesResponse(BaseModel):
     """Model for a response listing database tables."""
     tables: List[TableInfo]
+
 
 class SchemaRequest(BaseModel):
     """Model for a request to get table schema."""
     table: str
     schema: Optional[str] = Field(None, description="Database schema")
+
 
 class ColumnInfo(BaseModel):
     """Model for column information."""
@@ -55,9 +61,11 @@ class ColumnInfo(BaseModel):
     type: str
     nullable: bool
 
+
 class SchemaResponse(BaseModel):
     """Model for a response with table schema information."""
     columns: List[ColumnInfo]
+
 
 # Database service
 class PostgreSQLService:
@@ -118,7 +126,7 @@ class PostgreSQLService:
         else:
             query += " AND table_schema NOT IN ('pg_catalog', 'information_schema')"
 
-        columns, rows = await self.execute_query(query, params)
+        _, rows = await self.execute_query(query, params)
         return [{"name": row[0], "schema": row[1]} for row in rows]
 
     async def get_table_schema(
@@ -145,7 +153,7 @@ class PostgreSQLService:
             query += " AND table_schema = %(schema)s"
             params['schema'] = schema
 
-        columns, rows = await self.execute_query(query, params)
+        _, rows = await self.execute_query(query, params)
         return [
             {
                 "name": row[0],
@@ -155,14 +163,23 @@ class PostgreSQLService:
             for row in rows
         ]
 
+
 # Initialize FastAPI with lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Lifespan context manager for the FastAPI app.
+    This function is called when the app starts and stops.
+    It can be used to set up and tear down resources.
+
+    Args:
+        app: FastAPI application instance
+    """
     # Setup tasks
     logger.info("Starting MCP PostgreSQL server")
     yield
     # Cleanup tasks
     logger.info("Shutting down MCP PostgreSQL server")
+
 
 # Create FastAPI app
 app = FastAPI(
@@ -172,15 +189,18 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+
 # Dependency for the database service
 def get_db_service():
     """Dependency to get database service instance."""
     return PostgreSQLService()
 
+
 @app.get("/")
 async def root():
     """Health check endpoint."""
     return {"status": "ok", "message": "PostgreSQL MCP server is running"}
+
 
 @app.post("/query", response_model=QueryResponse)
 async def execute_query(
@@ -201,7 +221,8 @@ async def execute_query(
         return QueryResponse(columns=columns, rows=rows)
     except Exception as e:
         logger.error(f"Error executing query: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
 
 @app.post("/tables", response_model=TablesResponse)
 async def get_tables(
@@ -222,7 +243,8 @@ async def get_tables(
         return TablesResponse(tables=[TableInfo(**table) for table in tables])
     except Exception as e:
         logger.error(f"Error getting tables: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
 
 @app.post("/schema", response_model=SchemaResponse)
 async def get_schema(
@@ -243,22 +265,24 @@ async def get_schema(
         return SchemaResponse(columns=[ColumnInfo(**col) for col in columns])
     except Exception as e:
         logger.error(f"Error getting schema: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
 
 # Main entry point
-def start_server(host: str = "0.0.0.0", port: int = 8000):
+def start_server(server_host: str = "0.0.0.0", server_port: int = 8000):
     """
     Start the MCP server.
 
     Args:
-        host: Host to bind the server to
-        port: Port to bind the server to
+        server_host: Host to bind the server to
+        server_port: Port to bind the server to
     """
-    logger.info(f"Starting MCP PostgreSQL server on {host}:{port}")
-    uvicorn.run(app, host=host, port=port)
+    logger.info(f"Starting MCP PostgreSQL server on {server_host}:{server_port}")
+    uvicorn.run(app, host=server_host, port=server_port)
+
 
 if __name__ == "__main__":
     # Get host and port from environment variables or use defaults
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     port = int(os.environ.get("MCP_PORT", 8001))
-    start_server(host, port)
+    start_server(server_host=host, server_port=port)

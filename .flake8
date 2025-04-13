@@ -1,9 +1,9 @@
 [flake8]
 # Ignore line length errors
 ignore = E501
+max-line-length = 120
 
 # Other standard settings
-max-line-length = 79
 exclude =
     .git,
     __pycache__,
@@ -15,3 +15,4 @@ exclude =
     .venv,
     env/,
     venv/,
+    reference/**,
