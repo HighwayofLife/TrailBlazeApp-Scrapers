@@ -2,8 +2,7 @@
 
 import json
 import os
-from typing import Dict, Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from bs4 import BeautifulSoup
 import pytest
 
@@ -40,6 +39,85 @@ def expected_data():
         return json.load(f)
 
 
+def test_sanity():
+    assert True
+
+
+@pytest.fixture
+def minimal_calendar_row():
+    """Fixture providing a minimal BeautifulSoup calendar row for helper tests."""
+    html = '<div class="calendarRow">\n        <span class="rideName details" tag="12345">Test Event</span>\n        <td class="region">West</td>\n        <td class="bold">01/15/2025</td>\n        <tr class="fix-jumpy"><td>mgr: John Doe</td></tr>\n    </div>'
+    return BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
+
+
+def test_determine_event_type(scraper, minimal_calendar_row):
+    # Default is endurance
+    assert scraper._determine_event_type(minimal_calendar_row) == "endurance"
+    # Limited distance
+    minimal_calendar_row.string = "LD ride"
+    assert scraper._determine_event_type(minimal_calendar_row) == "limited_distance"
+    # Competitive trail
+    minimal_calendar_row.string = "Competitive Trail"
+
+
+def test_determine_has_intro_ride(scraper, minimal_calendar_row):
+    # No intro ride
+    assert not scraper._determine_has_intro_ride(minimal_calendar_row)
+    # Add intro ride text
+    minimal_calendar_row.append(BeautifulSoup('<span style="color:red">Has Intro Ride!</span>', 'html.parser'))
+
+
+def test_extract_details_past_event(scraper):
+    # Simulate a calendar row with a results link (past event)
+    html = '''<div class="calendarRow">
+        <span class="rideName details" tag="12345">Test Event</span>
+        <tr class="toggle-ride-dets">
+            <table class="detailData">
+                <tr><td><a href="/rides-ride-result/?distance=50">* Results *</a></td></tr>
+            </table>
+        </tr>
+    </div>'''
+    row = BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
+    details, is_past = scraper._extract_details(row)
+    assert is_past
+    assert details["distances"] == []
+
+
+def test_extract_manager_info_found(scraper):
+    # Should extract the manager name from a realistic details table
+    html = '''
+    <div class="calendarRow">
+        <span class="rideName details" tag="12345">Test Event</span>
+        <tr class="toggle-ride-dets">
+            <table class="detailData">
+                <tr><td>Ride Manager : John Doe</td></tr>
+            </table>
+        </tr>
+    </div>
+    '''
+    row = BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
+    assert scraper._extract_manager_info(row) == "John Doe"
+
+
+def test_extract_manager_info_fallback(scraper):
+    # Should fallback to 'Unknown' if no manager info is present
+    html = '<div class="calendarRow"><span class="rideName details" tag="12345">Test Event</span></div>'
+    row = BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
+    assert scraper._extract_manager_info(row) == "Unknown"
+
+
+def test_get_season_ids_from_calendar_page(scraper):
+    # Input with label as parent
+    html = '<label>2025 Season <input name="season[]" value="63"></label>'
+    result = scraper._get_season_ids_from_calendar_page(html)
+    assert result == {"63": 2025}
+    # Test fallback to year 0
+    html = '<input name="season[]" value="99">'
+    result = scraper._get_season_ids_from_calendar_page(html)
+    assert result == {"99": 0}
+    assert True
+
+
 def test_init(scraper):
     """Test AERCScraper initialization."""
     assert scraper.source_name == "AERC"
@@ -48,8 +126,10 @@ def test_init(scraper):
 
 def test_scrape_with_sample_data(scraper, sample_html, expected_data):
     """Test scraping with sample data."""
-    with patch.object(scraper, 'get_html') as mock_get_html:
+    with patch.object(scraper, 'get_html') as mock_get_html, \
+         patch.object(scraper, '_fetch_event_html') as mock_fetch_event_html:
         mock_get_html.return_value = sample_html
+        mock_fetch_event_html.return_value = sample_html
 
         result = scraper.scrape("https://aerc.org/calendar")
 
@@ -71,8 +151,10 @@ def test_scrape_with_sample_data(scraper, sample_html, expected_data):
 
 def test_create_final_output(scraper, sample_html, expected_data):
     """Test final output creation matches expected format."""
-    with patch.object(scraper, 'get_html') as mock_get_html:
+    with patch.object(scraper, 'get_html') as mock_get_html, \
+         patch.object(scraper, '_fetch_event_html') as mock_fetch_event_html:
         mock_get_html.return_value = sample_html
+        mock_fetch_event_html.return_value = sample_html
 
         # Get consolidated events
         consolidated_events = scraper.scrape("https://aerc.org/calendar")

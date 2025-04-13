@@ -1,32 +1,30 @@
 """Tests for the DatabaseManager module (SQLAlchemy ORM version)."""
 
-import pytest
-from app.database import DatabaseManager
-from app.orm_models import Base, Event
 from datetime import date
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, scoped_session
+from app.database import DatabaseManager
+from app.orm_models import Base
+from app.config import get_db_config
+
 
 @pytest.fixture
 def db_config():
-    return {
-        "host": "",
-        "port": "",
-        "database": "",
-        "user": "",
-        "password": "",
-        "url": "sqlite:///:memory:"
-    }
+    config = get_db_config()
+    config["url"] = "sqlite:///:memory:"
+    return config
+
 
 @pytest.fixture
 def db_manager(db_config):
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker, scoped_session
-
     # Pass db_url to DatabaseManager for SQLite in-memory
     mgr = DatabaseManager(db_config, db_url=db_config["url"])
     mgr.engine = create_engine(db_config["url"])
     mgr.Session = scoped_session(sessionmaker(bind=mgr.engine))
     Base.metadata.create_all(mgr.engine)
     return mgr
+
 
 @pytest.fixture
 def sample_event():
@@ -61,8 +59,10 @@ def sample_event():
         "directions": "Go north."
     }
 
+
 def test_create_tables(db_manager):
     db_manager.create_tables()  # Should not raise
+
 
 def test_insert_and_get_event(db_manager, sample_event):
     assert db_manager.insert_or_update_event(sample_event) is True
@@ -71,6 +71,7 @@ def test_insert_and_get_event(db_manager, sample_event):
     assert event["name"] == "Test Event"
     assert event["ride_id"] == "test-123"
     assert event["control_judges"][0]["name"] == "Judge Judy"
+
 
 def test_update_event(db_manager, sample_event):
     db_manager.insert_or_update_event(sample_event)
@@ -82,6 +83,7 @@ def test_update_event(db_manager, sample_event):
     assert event["name"] == "Updated Event"
     assert event["is_canceled"] is True
 
+
 def test_get_events_by_source(db_manager, sample_event):
     db_manager.insert_or_update_event(sample_event)
     events = db_manager.get_events_by_source("TEST")
@@ -89,10 +91,12 @@ def test_get_events_by_source(db_manager, sample_event):
     assert len(events) == 1
     assert events[0]["ride_id"] == "test-123"
 
+
 def test_delete_event(db_manager, sample_event):
     db_manager.insert_or_update_event(sample_event)
     assert db_manager.delete_event("TEST", "test-123") is True
     assert db_manager.get_event("TEST", "test-123") is None
+
 
 def test_delete_event_not_found(db_manager):
     assert db_manager.delete_event("TEST", "nonexistent") is False
