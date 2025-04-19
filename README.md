@@ -90,4 +90,4 @@ Contributions are welcome! Please see the [development guide](docs/development/d
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the Apache 2.0 License.
