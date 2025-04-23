@@ -164,13 +164,17 @@ class BaseScraper(abc.ABC):
 
             if ride_id not in consolidated:
                 consolidated[ride_id] = event
+                # Initialize date_end and multi-day flags
+                consolidated[ride_id]["date_end"] = None
+                consolidated[ride_id]["is_multi_day_event"] = False
+                consolidated[ride_id]["is_pioneer_ride"] = False
+                consolidated[ride_id]["ride_days"] = 1  # Default to 1 day
+
                 # Initialize tracking for this ride_id
                 if ride_id not in multi_day_events:
                     multi_day_events[ride_id] = {
                         "days": set([event.get("date_start")])
                     }
-                # Ensure pioneer flag is initialized
-                consolidated[ride_id]["is_pioneer_ride"] = False
             else:
                 # This is a multi-day event that needs consolidation
                 self.logging_manager.debug(f"Found multi-day event with ride_id: {ride_id}", ":date:")
@@ -187,29 +191,32 @@ class BaseScraper(abc.ABC):
         # Update multi-day flags for all consolidated events
         multi_day_count = 0
         for ride_id, event in consolidated.items():
+            # Check if it's a multi-day event based on collected dates
             if ride_id in multi_day_events and len(multi_day_events[ride_id]["days"]) > 1:
                 event["is_multi_day_event"] = True
-                # Initialize pioneer flag before potentially setting it to True
-                event["is_pioneer_ride"] = False
 
-                # Update ride days count
+                # Update date_start and date_end based on collected dates
                 days = sorted(list(multi_day_events[ride_id]["days"]))
-                if len(days) >= 1:
+                if days:  # Ensure there are dates before accessing elements
                     event["date_start"] = days[0]
                     event["date_end"] = days[-1]
 
                     # Calculate ride days
-                    start_dt = datetime.strptime(event["date_start"], "%Y-%m-%d")
-                    end_dt = datetime.strptime(event["date_end"], "%Y-%m-%d")
-                    event["ride_days"] = (end_dt - start_dt).days + 1
+                    try:
+                        start_dt = datetime.strptime(event["date_start"], "%Y-%m-%d")
+                        end_dt = datetime.strptime(event["date_end"], "%Y-%m-%d")
+                        event["ride_days"] = (end_dt - start_dt).days + 1
 
-                    # Check for pioneer ride (3 or more days)
-                    if event["ride_days"] >= 3:
-                        event["is_pioneer_ride"] = True
+                        # Check for pioneer ride (3 or more days)
+                        if event["ride_days"] >= 3:
+                            event["is_pioneer_ride"] = True
+                    except ValueError:
+                        self.logging_manager.warning(f"Could not parse dates for ride {ride_id} to calculate ride_days.", ":warning:")
+                        event["ride_days"] = len(days) # Fallback to number of distinct dates
 
                 multi_day_count += 1
                 self.metrics_manager.increment("multi_day_events")
-                self.logging_manager.debug(f"Marked event {ride_id} as multi-day with {event['ride_days']} days")
+                self.logging_manager.debug(f"Marked event {ride_id} as multi-day with {event.get('ride_days', 'unknown')} days")  # Use .get for safety
 
         self.logging_manager.info(
             f"Consolidated to {len(consolidated)} events ({multi_day_count} multi-day events)",

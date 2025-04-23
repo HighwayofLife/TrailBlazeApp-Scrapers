@@ -9,6 +9,8 @@ import requests
 from app.base_scraper import BaseScraper
 from app.utils import parse_date, extract_city_state_country
 from app.exceptions import HTMLDownloadError
+from ..llm_utility import LLM_Utility
+from ..exceptions import LLMAPIError, LLMContentError, LLMJsonParsingError
 
 
 class AERCScraper(BaseScraper):
@@ -270,6 +272,41 @@ class AERCScraper(BaseScraper):
                     "state": state,
                     "country": country
                 })
+
+                # --- LLM Address Extraction ---
+                llm_address_data = None
+                try:
+                    # Convert the relevant part of the row to string for the LLM
+                    # Using the whole row for now, might refine later if needed
+                    html_snippet = str(row)
+                    if html_snippet:
+                        self.logging_manager.debug(f"Attempting LLM address extraction for ride {ride_id}", emoji=":robot:")
+                        llm_address_data = LLM_Utility.extract_address_from_html(html_snippet)
+                        if llm_address_data:
+                            self.logging_manager.info(f"LLM successfully extracted address data for ride {ride_id}", emoji=":white_check_mark:")
+                            self.metrics_manager.increment("llm_address_extractions_success")
+                        else:
+                            # LLM ran but didn't find/return data
+                            self.logging_manager.info(f"LLM utility ran but found no address data for ride {ride_id}", emoji=":magnifying_glass_tilted_left:")
+                            self.metrics_manager.increment("llm_address_extractions_nodata")
+                    else:
+                        self.logging_manager.warning(f"Empty HTML snippet for LLM processing for ride {ride_id}", emoji=":warning:")
+
+                except (LLMAPIError, LLMContentError, LLMJsonParsingError) as e:
+                    self.logging_manager.warning(f"LLM address extraction failed for ride {ride_id}: {e}", emoji=":x:")
+                    self.metrics_manager.increment("llm_address_extractions_error")
+                except Exception as e:
+                    # Catch unexpected errors during LLM call
+                    self.logging_manager.error(f"Unexpected error during LLM address extraction for ride {ride_id}: {e}", emoji=":rotating_light:")
+                    self.metrics_manager.increment("llm_address_extractions_error")
+
+                # Update event_data, prioritizing LLM results
+                event_data['address'] = llm_address_data.get('address') if llm_address_data else None
+                # Keep existing city/state if LLM doesn't provide one
+                event_data['city'] = (llm_address_data.get('city') if llm_address_data else None) or event_data.get('city')
+                event_data['state'] = (llm_address_data.get('state') if llm_address_data else None) or event_data.get('state')
+                event_data['zip_code'] = llm_address_data.get('zip_code') if llm_address_data else None
+                # -------------------------------
 
                 all_events.append(event_data)
                 self.metrics_manager.increment("events_extracted")
@@ -704,7 +741,6 @@ class AERCScraper(BaseScraper):
 
         # Process each row in the detail table
         for tr in detail_table.find_all("tr"):
-            tds = tr.find_all("td")
             td_text = tr.get_text().strip()
 
             # Check for indicators of a past event's results section
@@ -715,9 +751,11 @@ class AERCScraper(BaseScraper):
                 self.logging_manager.debug(f"Detected past event by results link for ride_id: {ride_id}")
                 # Attempt to extract minimal distance info from results row for context, but don't store full results
                 try:
-                    distance_text = tds[0].get_text(strip=True) if tds else "" # Might contain distance like '50 mi'
-                    date_text = tds[1].get_text(strip=True) if len(tds) > 1 else "" # Contains date and time
-                    results_info_text = tds[2].get_text(strip=True) if len(tds) > 2 else ""  # Contains starters/finishers
+                    # The variables distance_text, date_text, results_info_text are not used,
+                    # so we can remove their assignment.
+                    # distance_text = tds[0].get_text(strip=True) if tds else ""
+                    # date_text = tds[1].get_text(strip=True) if len(tds) > 1 else ""
+                    # results_info_text = tds[2].get_text(strip=True) if len(tds) > 2 else ""
 
                     # Try parsing basic distance info if needed later, but for now, skip adding to details['distances']
                     # Example: dist_match = re.search(r'(\d+)', distance_text)

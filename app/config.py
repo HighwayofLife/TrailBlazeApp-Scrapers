@@ -1,7 +1,7 @@
 """Configuration module for the TrailBlazeApp-Scrapers project."""
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     # AERC specific settings
     AERC_BASE_URL: str = "https://aerc.org/wp-admin/admin-ajax.php"
     AERC_CALENDAR_URL: str = "https://aerc.org/calendar"
+
+    # LLM settings
+    LLM_API_ENDPOINT: Optional[str] = None  # Endpoint URL for the LLM API
+    LLM_API_KEY: Optional[str] = None       # API Key for the LLM API
+
+    # LLM Retry Settings
+    LLM_MAX_RETRIES: int = 3
+    LLM_RETRY_DELAY_SECONDS: int = 2
+    LLM_REQUEST_TIMEOUT_SECONDS: int = 30
 
     model_config = {
         "env_file": ".env",

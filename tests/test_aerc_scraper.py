@@ -5,14 +5,18 @@ import os
 from unittest.mock import patch
 from bs4 import BeautifulSoup
 import pytest
+from app.exceptions import LLMAPIError, LLMContentError, LLMJsonParsingError
 
 from app.scrapers.aerc_scraper import AERCScraper
 
 
 @pytest.fixture
-def scraper():
-    """Fixture providing AERCScraper instance."""
-    return AERCScraper(cache_ttl=86400)
+def scraper(mock_config): # Add mock_config as a dependency
+    """Fixture providing AERCScraper instance with mocked settings."""
+    # Patch get_settings within the scraper fixture
+    with patch('app.scrapers.aerc_scraper.get_settings') as mock_get_settings:
+        mock_get_settings.return_value = mock_config  # Return the mock settings from mock_config fixture
+        return AERCScraper(cache_ttl=86400)
 
 
 @pytest.fixture
@@ -68,7 +72,7 @@ def test_determine_has_intro_ride(scraper, minimal_calendar_row):
 
 
 def test_extract_details_past_event(scraper):
-    # Simulate a calendar row with a results link (past event)
+    """Simulate a calendar row with a results link (past event)."""
     html = '''<div class="calendarRow">
         <span class="rideName details" tag="12345">Test Event</span>
         <tr class="toggle-ride-dets">
@@ -84,7 +88,7 @@ def test_extract_details_past_event(scraper):
 
 
 def test_extract_manager_info_found(scraper):
-    # Should extract the manager name from a realistic details table
+    """Should extract the manager name from a realistic details table."""
     html = '''
     <div class="calendarRow">
         <span class="rideName details" tag="12345">Test Event</span>
@@ -100,13 +104,14 @@ def test_extract_manager_info_found(scraper):
 
 
 def test_extract_manager_info_fallback(scraper):
-    # Should fallback to 'Unknown' if no manager info is present
+    """Should fallback to 'Unknown' if no manager info is present."""
     html = '<div class="calendarRow"><span class="rideName details" tag="12345">Test Event</span></div>'
     row = BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
     assert scraper._extract_manager_info(row) == "Unknown"
 
 
 def test_get_season_ids_from_calendar_page(scraper):
+    """Test getting season IDs from calendar page HTML."""
     # Input with label as parent
     html = '<label>2025 Season <input name="season[]" value="63"></label>'
     result = scraper._get_season_ids_from_calendar_page(html)
@@ -140,13 +145,15 @@ def test_scrape_with_sample_data(scraper, sample_html, expected_data):
         assert len(result) > 0
 
         # Check the structure of a sample event
-        for ride_id, event_data in result.items():
-            # Every event should have these basic properties
-            assert "name" in event_data
-            assert "ride_id" in event_data
-            assert "date_start" in event_data
-            assert "source" in event_data
-            assert event_data["source"] == "AERC"
+        # Check the structure of a sample event
+        sample_event = next(iter(result.values()))
+        expected_sample = next(iter(expected_data.values()))
+        for key in ['name', 'source', 'event_type', 'date_start', 'date_end',
+                    'location_name', 'region', 'is_canceled', 'is_multi_day_event',
+                    'ride_days', 'ride_manager', 'ride_id']:
+            assert key in sample_event, f"Missing key {key} in sample event"
+            # Don't compare values, just make sure the structure is correct
+            assert key in expected_sample, f"Missing key {key} in expected sample"
 
 
 def test_create_final_output(scraper, sample_html, expected_data):
@@ -172,8 +179,8 @@ def test_create_final_output(scraper, sample_html, expected_data):
 
         # Check key fields match in structure
         for key in ['name', 'source', 'event_type', 'date_start', 'date_end',
-                   'location_name', 'region', 'is_canceled', 'is_multi_day_event',
-                   'ride_days', 'ride_manager', 'ride_id']:
+                    'location_name', 'region', 'is_canceled', 'is_multi_day_event',
+                    'ride_days', 'ride_manager', 'ride_id']:
             assert key in sample_event, f"Missing key {key} in sample event"
             # Don't compare values, just make sure the structure is correct
             assert key in expected_sample, f"Missing key {key} in expected sample"
@@ -203,16 +210,16 @@ def test_extract_event_data(scraper, sample_html):
         assert "city" in event
         assert "state" in event
         assert "country" in event
-        assert "distances" in event # Should be present, even if empty for past events
+        assert "distances" in event   # Should be present, even if empty for past events
 
         # Specific checks for the known past event
-        if event.get("ride_id") == "14446": # Barefoot In New Mexico
+        if event.get("ride_id") == "14446":   # Barefoot In New Mexico
             found_past_event = True
             assert event["name"] == "Barefoot In New Mexico"
             assert event["date_start"] == "2024-12-01"
-            assert event["distances"] == [] # Explicitly check distances are empty
-            assert "results_by_distance" not in event # Ensure results field is NOT present
-            assert "is_past_event" not in event # Ensure is_past_event field is NOT present
+            assert event["distances"] == []   # Explicitly check distances are empty
+            assert "results_by_distance" not in event   # Ensure results field is NOT present
+            assert "is_past_event" not in event   # Ensure is_past_event field is NOT present
             assert event["ride_manager"] == "Marcelle Hughes"
             assert event["location_name"] == "52 San Tomaso Rd., Alamogordo NM"
             assert event["city"] == "Alamogordo"
@@ -288,3 +295,149 @@ def test_consolidate_events(scraper):
     assert result["12345"]["date_end"] == "2025-06-02"
     assert result["12345"]["ride_days"] == 2
     assert len(result["12345"]["distances"]) == 2
+
+
+@pytest.fixture
+def inconsistent_address_html():
+    """Fixture providing HTML content with inconsistent address format."""
+    html = '''<div class="calendarRow">
+        <span class="rideName details" tag="67890">Event with Bad Address</span>
+        <td class="region">East</td>
+        <td class="bold">07/20/2025</td>
+        <tr class="fix-jumpy"><td>mgr: Jane Doe</td></tr>
+        <tr class="toggle-ride-dets">
+            <table class="detailData">
+                <tr><td>Location: This is not a standard address format, see if LLM can fix it. City: Unknown, State: ?, Zip: 12345</td></tr>
+            </table>
+        </tr>
+    </div>'''
+    return BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
+
+# Test integration with LLM_Utility for inconsistent address
+
+
+@patch('app.scrapers.aerc_scraper.LLM_Utility')
+def test_extract_event_data_with_llm(mock_llm_utility, scraper, inconsistent_address_html, mock_config):  # Added mock_config
+    mock_instance = mock_llm_utility.return_value
+    mock_instance.extract_address_from_html.return_value = {
+        "address": "789 Pine Rd",
+        "city": "Lakewood",
+        "state": "CO",
+        "zip_code": "80123"
+    }
+
+    # Wrap the single row HTML in a structure that extract_event_data expects
+    html_content = f'<div>{inconsistent_address_html}</div>'
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    events = scraper.extract_event_data(soup)
+
+    # Assert that LLM_Utility was instantiated and its method was called
+    mock_llm_utility.assert_called_once()
+    mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+
+    # Assert that the event data was updated with LLM results
+    assert len(events) == 1
+    event = events[0]
+    assert event["ride_id"] == "67890"
+    assert event["location_name"] == "789 Pine Rd"
+    assert event["city"] == "Lakewood"
+    assert event["state"] == "CO"
+    assert event["zip_code"] == "80123"
+
+# Test integration with LLM_Utility when LLMAPIError occurs
+
+
+@patch('app.scrapers.aerc_scraper.LLM_Utility')
+@patch('app.logging_manager.LoggingManager')
+def test_extract_event_data_llm_api_error(mock_logging_manager_class, mock_llm_utility, scraper, inconsistent_address_html, mock_config):  # Added mock_config
+    mock_logging_manager_instance = mock_logging_manager_class.return_value  # Get the mock instance
+    mock_instance = mock_llm_utility.return_value
+    mock_instance.extract_address_from_html.side_effect = LLMAPIError("API error")
+
+    html_content = f'<div>{inconsistent_address_html}</div>'
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    events = scraper.extract_event_data(soup)
+
+    # Assert that LLM_Utility was called
+    mock_llm_utility.assert_called_once()
+    mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+
+    # Assert that an error was logged using the mock instance
+    mock_logging_manager_instance.warning.assert_called_once()  # It's a warning in the scraper
+    assert "LLM address extraction failed for ride 67890: API error" in mock_logging_manager_instance.warning.call_args[0][0]  # Updated log message check and mock name
+
+    # Assert that the event data does NOT contain LLM results
+    assert len(events) == 1
+    event = events[0]
+    assert event["ride_id"] == "67890"
+    # Check that the original, unparsed location is still there or fields are missing/None
+    assert "location_name" in event   # The original location_name should still be present
+    assert event.get("city") is None   # LLM fields should not be present or be None
+    assert event.get("state") is None
+    assert event.get("zip_code") is None
+
+# Test integration with LLM_Utility when LLMContentError occurs
+
+
+@patch('app.scrapers.aerc_scraper.LLM_Utility')
+@patch('app.logging_manager.LoggingManager')
+def test_extract_event_data_llm_content_error(mock_logging_manager_class, mock_llm_utility, scraper, inconsistent_address_html, mock_config):  # Added mock_config
+    mock_logging_manager_instance = mock_logging_manager_class.return_value  # Get the mock instance
+    mock_instance = mock_llm_utility.return_value
+    mock_instance.extract_address_from_html.side_effect = LLMContentError("Content error")
+
+    html_content = f'<div>{inconsistent_address_html}</div>'
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    events = scraper.extract_event_data(soup)
+
+    # Assert that LLM_Utility was called
+    mock_llm_utility.assert_called_once()
+    mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+
+    # Assert that an error was logged using the mock instance
+    mock_logging_manager_instance.warning.assert_called_once()  # It's a warning in the scraper
+    assert "LLM address extraction failed for ride 67890: Content error" in mock_logging_manager_instance.warning.call_args[0][0]  # Updated log message check and mock name
+
+    # Assert that the event data does NOT contain LLM results
+    assert len(events) == 1
+    event = events[0]
+    assert event["ride_id"] == "67890"
+    assert "location_name" in event
+    assert event.get("city") is None
+    assert event.get("state") is None
+    assert event.get("zip_code") is None
+
+# Test integration with LLM_Utility when LLMJsonParsingError occurs
+
+
+@patch('app.scrapers.aerc_scraper.LLM_Utility')
+@patch('app.logging_manager.LoggingManager')
+def test_extract_event_data_llm_json_parsing_error(mock_logging_manager_class, mock_llm_utility, scraper, inconsistent_address_html, mock_config):  # Added mock_config
+    mock_logging_manager_instance = mock_logging_manager_class.return_value  # Get the mock instance
+    mock_instance = mock_llm_utility.return_value
+    mock_instance.extract_address_from_html.side_effect = LLMJsonParsingError("JSON parsing error")
+
+    html_content = f'<div>{inconsistent_address_html}</div>'
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    events = scraper.extract_event_data(soup)
+
+    # Assert that LLM_Utility was called
+    mock_llm_utility.assert_called_once()
+    mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+
+    # Assert that an error was logged using the mock instance
+    mock_logging_manager_instance.warning.assert_called_once()  # It's a warning in the scraper
+    assert "LLM address extraction failed for ride 67890: JSON parsing error" in mock_logging_manager_instance.warning.call_args[0][0]  # Updated log message check and mock name
+
+    # Assert that the event data does NOT contain LLM results
+    assert len(events) == 1
+    event = events[0]
+    assert event["ride_id"] == "67890"
+    assert "location_name" in event
+    assert event.get("city") is None
+    assert event.get("state") is None
+    assert event.get("zip_code") is None

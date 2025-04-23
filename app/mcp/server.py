@@ -8,6 +8,8 @@ and allows AI models to interact with your database in a controlled manner.
 import os
 from typing import Dict, Any, List, Optional, Tuple
 from contextlib import asynccontextmanager
+from sqlalchemy import text
+
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 import uvicorn
@@ -91,17 +93,24 @@ class PostgreSQLService:
         if parameters is None:
             parameters = {}
 
-        with self.db_manager.connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, parameters)
-                if cursor.description:
-                    columns = [desc[0] for desc in cursor.description]
-                    rows = cursor.fetchall()
-                    # Convert any non-serializable types to strings
+        session = self.db_manager.Session()
+        try:
+            # Use a raw connection from the engine for executing arbitrary queries
+            with self.db_manager.engine.connect() as conn:
+                result = conn.execute(text(query), parameters)
+                if result.returns_rows:
+                    columns = list(result.keys())
+                    rows = [list(row) for row in result.fetchall()]
+                    # Convert any non-serializable types to strings (if needed, though SQLAlchemy often handles this)
                     rows = [[str(cell) if not isinstance(cell, (int, float, str, bool, type(None)))
                             else cell for cell in row] for row in rows]
                     return columns, rows
                 return [], []
+        except Exception as e:
+            logger.error(f"Error executing query: {e}")
+            raise  # Re-raise the exception after logging
+        finally:
+            session.close()  # Close the session obtained earlier, even if not directly used for query execution
 
     async def get_tables(self, schema: Optional[str] = None) -> List[Dict[str, str]]:
         """
@@ -126,7 +135,7 @@ class PostgreSQLService:
         else:
             query += " AND table_schema NOT IN ('pg_catalog', 'information_schema')"
 
-        _, rows = await self.execute_query(query, params)
+        columns, rows = await self.execute_query(query, params)
         return [{"name": row[0], "schema": row[1]} for row in rows]
 
     async def get_table_schema(
@@ -153,7 +162,7 @@ class PostgreSQLService:
             query += " AND table_schema = %(schema)s"
             params['schema'] = schema
 
-        _, rows = await self.execute_query(query, params)
+        columns, rows = await self.execute_query(query, params)
         return [
             {
                 "name": row[0],
