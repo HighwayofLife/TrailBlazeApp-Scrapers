@@ -296,8 +296,8 @@ class AERCScraper(BaseScraper):
                 except (LLMAPIError, LLMContentError, LLMJsonParsingError) as e:
                     self.logging_manager.warning(f"LLM address extraction failed for ride {ride_id}: {e}", emoji=":x:")
                     self.metrics_manager.increment("llm_address_extractions_error")
-                except Exception as e:
-                    # Catch unexpected errors during LLM call
+                except (ValueError, TypeError, KeyError, AttributeError, requests.RequestException) as e:
+                    # Catch specific but unexpected errors during LLM call
                     self.logging_manager.error(f"Unexpected error during LLM address extraction for ride {ride_id}: {e}", emoji=":rotating_light:")
                     self.metrics_manager.increment("llm_address_extractions_error")
 
