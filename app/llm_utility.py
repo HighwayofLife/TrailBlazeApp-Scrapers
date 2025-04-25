@@ -54,14 +54,14 @@ JSON Output:
             LLMContentError: If the LLM response indicates an issue (e.g., moderation).
             LLMJsonParsingError: If the LLM response is not valid JSON.
         """
-        settings = get_settings()
-        if not settings.LLM_API_ENDPOINT or not settings.LLM_API_KEY:
+        config = get_settings()
+        if not config.LLM_API_ENDPOINT or not config.LLM_API_KEY:
             logger.warning("LLM_API_ENDPOINT or LLM_API_KEY is not configured. Skipping LLM extraction.")
             return None
 
         prompt = cls._construct_prompt(html_snippet)
         headers = {
-            "Authorization": f"Bearer {settings.LLM_API_KEY}",  # settings is now defined locally
+            "Authorization": f"Bearer {config.LLM_API_KEY}",
             "Content-Type": "application/json",
         }
         # This payload structure is hypothetical and depends on the specific LLM API
@@ -74,13 +74,13 @@ JSON Output:
 
         last_exception: Optional[Exception] = LLMAPIError("LLM request failed after all retries.")  # Initialize with a default error
 
-        for attempt in range(settings.LLM_MAX_RETRIES):
+        for attempt in range(config.LLM_MAX_RETRIES):
             try:
                 response = requests.post(
-                    settings.LLM_API_ENDPOINT,  # settings is now defined locally
+                    config.LLM_API_ENDPOINT,
                     headers=headers,
                     json=payload,
-                    timeout=settings.LLM_REQUEST_TIMEOUT_SECONDS,
+                    timeout=config.LLM_REQUEST_TIMEOUT_SECONDS,
                 )
                 response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
 
@@ -147,10 +147,10 @@ JSON Output:
                 raise e  # Propagate the specific error
 
             except RequestException as e:
-                logger.warning(f"LLM API request failed (attempt {attempt + 1}/{settings.LLM_MAX_RETRIES}): {e}")  # Use settings for max retries
+                logger.warning(f"LLM API request failed (attempt {attempt + 1}/{config.LLM_MAX_RETRIES}): {e}")
                 last_exception = LLMAPIError(f"API request failed: {e}")
-                if attempt < settings.LLM_MAX_RETRIES - 1:  # Use settings for max retries
-                    time.sleep(settings.LLM_RETRY_DELAY_SECONDS)  # Use settings for retry delay
+                if attempt < config.LLM_MAX_RETRIES - 1:
+                    time.sleep(config.LLM_RETRY_DELAY_SECONDS)
                 else:
                     logger.error("LLM API request failed after multiple retries.")
                     # Ensure last_exception is an Exception before raising
@@ -162,8 +162,8 @@ JSON Output:
             except (ValueError, TypeError, KeyError, json.decoder.JSONDecodeError) as e:  # Catch specific exceptions instead of generic Exception
                 logger.error(f"Unexpected error during LLM interaction (attempt {attempt + 1}): {e}", exc_info=True)
                 last_exception = e  # Store the exception
-                if attempt < settings.LLM_MAX_RETRIES - 1:  # Use settings for max retries
-                    time.sleep(settings.LLM_RETRY_DELAY_SECONDS)  # Use settings for retry delay
+                if attempt < config.LLM_MAX_RETRIES - 1:
+                    time.sleep(config.LLM_RETRY_DELAY_SECONDS)
                 else:
                     logger.error("Unexpected error persisted after retries during LLM interaction.")
                     # Raise a generic error wrapping the last exception
