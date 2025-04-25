@@ -9,6 +9,7 @@ import requests
 from app.base_scraper import BaseScraper
 from app.utils import parse_date, extract_city_state_country
 from app.exceptions import HTMLDownloadError
+from app.config import get_settings
 from ..llm_utility import LLM_Utility
 from ..exceptions import LLMAPIError, LLMContentError, LLMJsonParsingError
 
@@ -28,6 +29,9 @@ class AERCScraper(BaseScraper):
             cache_ttl (int): Cache time-to-live in seconds (default: 86400 (24 hours))
         """
         super().__init__(source_name="AERC", cache_ttl=cache_ttl)
+
+        # Add direct reference to get_settings for testability
+        self.settings = get_settings()
 
     def scrape(self, url: str) -> Dict[str, Any]:
         """

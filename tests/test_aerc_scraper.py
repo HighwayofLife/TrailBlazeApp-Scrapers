@@ -6,12 +6,12 @@ from unittest.mock import patch
 from bs4 import BeautifulSoup
 import pytest
 from app.exceptions import LLMAPIError, LLMContentError, LLMJsonParsingError
-
+from app.config import get_settings
 from app.scrapers.aerc_scraper import AERCScraper
 
 
 @pytest.fixture
-def scraper(mock_config): # Add mock_config as a dependency
+def scraper(mock_config):  # Add mock_config as a dependency
     """Fixture providing AERCScraper instance with mocked settings."""
     # Patch get_settings within the scraper fixture
     with patch('app.scrapers.aerc_scraper.get_settings') as mock_get_settings:
