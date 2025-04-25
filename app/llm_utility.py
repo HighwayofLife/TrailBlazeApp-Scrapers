@@ -159,7 +159,12 @@ JSON Output:
                     else:  # Should not happen with the new initialization, but as a safeguard
                         raise LLMAPIError("LLM API request failed after multiple retries (unknown error).") from e
 
-            except (ValueError, TypeError, KeyError, json.decoder.JSONDecodeError) as e:  # Catch specific exceptions instead of generic Exception
+            except json.decoder.JSONDecodeError as e:  # Handle JSON decode errors separately
+                logger.error(f"Failed to decode JSON from LLM API response (attempt {attempt + 1}): {e}", exc_info=True)
+                # Don't retry JSON decode errors, treat them as parsing errors
+                raise LLMJsonParsingError(f"Failed to parse JSON from API response: {e}") from e
+
+            except (ValueError, TypeError, KeyError) as e:  # Catch other specific exceptions
                 logger.error(f"Unexpected error during LLM interaction (attempt {attempt + 1}): {e}", exc_info=True)
                 last_exception = e  # Store the exception
                 if attempt < config.LLM_MAX_RETRIES - 1:
