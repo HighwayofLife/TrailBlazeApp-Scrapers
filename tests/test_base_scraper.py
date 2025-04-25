@@ -48,32 +48,32 @@ def sample_events():
             "ride_id": "123",
             "name": "Test Event",
             "date_start": "2025-03-20",
-            "distances": [{"distance": "50", "date": "2025-03-20"}]
+            "distances": [{"distance": "50", "date": "2025-03-20"}],
         },
         {
             "ride_id": "123",
             "name": "Test Event",
             "date_start": "2025-03-21",
-            "distances": [{"distance": "75", "date": "2025-03-21"}]
+            "distances": [{"distance": "75", "date": "2025-03-21"}],
         },
         {
-            "ride_id": "456", # Pioneer ride
+            "ride_id": "456",  # Pioneer ride
             "name": "Pioneer Event",
             "date_start": "2025-04-10",
-            "distances": [{"distance": "50", "date": "2025-04-10"}]
+            "distances": [{"distance": "50", "date": "2025-04-10"}],
         },
         {
             "ride_id": "456",
             "name": "Pioneer Event",
             "date_start": "2025-04-11",
-            "distances": [{"distance": "50", "date": "2025-04-11"}]
+            "distances": [{"distance": "50", "date": "2025-04-11"}],
         },
         {
             "ride_id": "456",
             "name": "Pioneer Event",
             "date_start": "2025-04-12",
-            "distances": [{"distance": "50", "date": "2025-04-12"}]
-        }
+            "distances": [{"distance": "50", "date": "2025-04-12"}],
+        },
     ]
 
 
@@ -91,17 +91,19 @@ def test_init(scraper):
         "database_inserts",
         "database_updates",
         "cache_hits",
-        "cache_misses"
+        "cache_misses",
     ]
 
     for metric in expected_metrics:
         assert metric in scraper.metrics, f"Expected metric '{metric}' not found"
-        assert isinstance(scraper.metrics[metric], int), f"Metric '{metric}' is not an integer"
+        assert isinstance(
+            scraper.metrics[metric], int
+        ), f"Metric '{metric}' is not an integer"
 
 
 def test_get_html_success(scraper):
     """Test successful HTML retrieval."""
-    with patch('requests.get') as mock_get:
+    with patch("requests.get") as mock_get:
         mock_get.return_value.text = "<html>Test</html>"
         mock_get.return_value.status_code = 200
 
@@ -114,7 +116,7 @@ def test_get_html_success(scraper):
 
 def test_get_html_cached(scraper):
     """Test HTML retrieval from cache."""
-    with patch('app.cache.Cache.get') as mock_cache_get:
+    with patch("app.cache.Cache.get") as mock_cache_get:
         mock_cache_get.return_value = "<html>Cached</html>"
 
         result = scraper.get_html("https://example.com")
@@ -141,7 +143,9 @@ def test_consolidate_events(scraper, sample_events):
     event_123 = result["123"]
     assert len(event_123["distances"]) == 2
     assert event_123["is_multi_day_event"] is True
-    assert event_123["is_pioneer_ride"] is False # Explicitly check pioneer is False for 2 days
+    assert (
+        event_123["is_pioneer_ride"] is False
+    )  # Explicitly check pioneer is False for 2 days
     assert event_123["date_start"] == "2025-03-20"
     assert event_123["date_end"] == "2025-03-21"
     assert event_123["ride_days"] == 2
@@ -151,7 +155,9 @@ def test_consolidate_events(scraper, sample_events):
     event_456 = result["456"]
     assert len(event_456["distances"]) == 3
     assert event_456["is_multi_day_event"] is True
-    assert event_456["is_pioneer_ride"] is True # Explicitly check pioneer is True for 3 days
+    assert (
+        event_456["is_pioneer_ride"] is True
+    )  # Explicitly check pioneer is True for 3 days
     assert event_456["date_start"] == "2025-04-10"
     assert event_456["date_end"] == "2025-04-12"
     assert event_456["ride_days"] == 3
@@ -175,7 +181,7 @@ def test_create_final_output(scraper):
             "is_canceled": False,
             "event_type": "endurance",
             "has_intro_ride": False,
-            "distances": [{"distance": "50", "date": "2025-03-20"}]
+            "distances": [{"distance": "50", "date": "2025-03-20"}],
         }
     }
 
@@ -198,7 +204,7 @@ def test_metrics_property(scraper):
         "database_inserts",
         "database_updates",
         "cache_hits",
-        "cache_misses"
+        "cache_misses",
     ]
 
     for metric in expected_metrics:

@@ -19,7 +19,7 @@ def db_config():
         "port": 5432,
         "database": "test_db",
         "user": "test_user",
-        "password": "test_pass"
+        "password": "test_pass",
     }
 
 
@@ -38,7 +38,7 @@ def sample_event_data():
         "ride_days": 1,
         "event_type": "endurance",
         "distances": [{"distance": "50", "date": "2023-06-15"}],
-        "control_judges": [{"name": "Test Judge", "role": "Control Judge"}]
+        "control_judges": [{"name": "Test Judge", "role": "Control Judge"}],
     }
 
 
@@ -112,7 +112,7 @@ def test_scraper_with_validator_integration(test_scraper, sample_event_data):
         # Check if we had any validation errors
         if validation_errors:
             test_scraper.metrics_manager.increment.assert_called_with(
-                'validation_errors', len(validation_errors)
+                "validation_errors", len(validation_errors)
             )
             return False
 
@@ -123,7 +123,9 @@ def test_scraper_with_validator_integration(test_scraper, sample_event_data):
 
     # Verify the test passed
     assert result is True
-    test_scraper.db_manager.insert_or_update_event.assert_called_once_with(sample_event_data)
+    test_scraper.db_manager.insert_or_update_event.assert_called_once_with(
+        sample_event_data
+    )
     test_scraper.db_manager.get_event.assert_called_once_with(
         sample_event_data["source"], sample_event_data["ride_id"]
     )
@@ -172,7 +174,9 @@ def test_scraper_with_validator_integration_mismatch(test_scraper, sample_event_
 
     # Verify the test failed due to data mismatch
     assert result is False
-    test_scraper.db_manager.insert_or_update_event.assert_called_once_with(sample_event_data)
+    test_scraper.db_manager.insert_or_update_event.assert_called_once_with(
+        sample_event_data
+    )
     test_scraper.db_manager.get_event.assert_called_once_with(
         sample_event_data["source"], sample_event_data["ride_id"]
     )

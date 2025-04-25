@@ -14,8 +14,10 @@ from app.scrapers.aerc_scraper import AERCScraper
 def scraper(mock_config):  # Add mock_config as a dependency
     """Fixture providing AERCScraper instance with mocked settings."""
     # Patch get_settings within the scraper fixture
-    with patch('app.scrapers.aerc_scraper.get_settings') as mock_get_settings:
-        mock_get_settings.return_value = mock_config  # Return the mock settings from mock_config fixture
+    with patch("app.scrapers.aerc_scraper.get_settings") as mock_get_settings:
+        mock_get_settings.return_value = (
+            mock_config  # Return the mock settings from mock_config fixture
+        )
         return AERCScraper(cache_ttl=86400)
 
 
@@ -23,9 +25,7 @@ def scraper(mock_config):  # Add mock_config as a dependency
 def sample_html():
     """Fixture providing sample HTML content from file."""
     fixture_path = os.path.join(
-        os.path.dirname(__file__),
-        "fixtures",
-        "input_file.html"
+        os.path.dirname(__file__), "fixtures", "input_file.html"
     )
     with open(fixture_path, "r", encoding="utf-8") as f:
         return f.read()
@@ -35,9 +35,7 @@ def sample_html():
 def expected_data():
     """Fixture providing expected data from JSON file."""
     fixture_path = os.path.join(
-        os.path.dirname(__file__),
-        "fixtures",
-        "expected_data.json"
+        os.path.dirname(__file__), "fixtures", "expected_data.json"
     )
     with open(fixture_path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -51,7 +49,7 @@ def test_sanity():
 def minimal_calendar_row():
     """Fixture providing a minimal BeautifulSoup calendar row for helper tests."""
     html = '<div class="calendarRow">\n        <span class="rideName details" tag="12345">Test Event</span>\n        <td class="region">West</td>\n        <td class="bold">01/15/2025</td>\n        <tr class="fix-jumpy"><td>mgr: John Doe</td></tr>\n    </div>'
-    return BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
+    return BeautifulSoup(html, "html.parser").find("div", class_="calendarRow")
 
 
 def test_determine_event_type(scraper, minimal_calendar_row):
@@ -68,20 +66,22 @@ def test_determine_has_intro_ride(scraper, minimal_calendar_row):
     # No intro ride
     assert not scraper._determine_has_intro_ride(minimal_calendar_row)
     # Add intro ride text
-    minimal_calendar_row.append(BeautifulSoup('<span style="color:red">Has Intro Ride!</span>', 'html.parser'))
+    minimal_calendar_row.append(
+        BeautifulSoup('<span style="color:red">Has Intro Ride!</span>', "html.parser")
+    )
 
 
 def test_extract_details_past_event(scraper):
     """Simulate a calendar row with a results link (past event)."""
-    html = '''<div class="calendarRow">
+    html = """<div class="calendarRow">
         <span class="rideName details" tag="12345">Test Event</span>
         <tr class="toggle-ride-dets">
             <table class="detailData">
                 <tr><td><a href="/rides-ride-result/?distance=50">* Results *</a></td></tr>
             </table>
         </tr>
-    </div>'''
-    row = BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
+    </div>"""
+    row = BeautifulSoup(html, "html.parser").find("div", class_="calendarRow")
     details, is_past = scraper._extract_details(row)
     assert is_past
     assert details["distances"] == []
@@ -89,7 +89,7 @@ def test_extract_details_past_event(scraper):
 
 def test_extract_manager_info_found(scraper):
     """Should extract the manager name from a realistic details table."""
-    html = '''
+    html = """
     <div class="calendarRow">
         <span class="rideName details" tag="12345">Test Event</span>
         <tr class="toggle-ride-dets">
@@ -98,15 +98,15 @@ def test_extract_manager_info_found(scraper):
             </table>
         </tr>
     </div>
-    '''
-    row = BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
+    """
+    row = BeautifulSoup(html, "html.parser").find("div", class_="calendarRow")
     assert scraper._extract_manager_info(row) == "John Doe"
 
 
 def test_extract_manager_info_fallback(scraper):
     """Should fallback to 'Unknown' if no manager info is present."""
     html = '<div class="calendarRow"><span class="rideName details" tag="12345">Test Event</span></div>'
-    row = BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
+    row = BeautifulSoup(html, "html.parser").find("div", class_="calendarRow")
     assert scraper._extract_manager_info(row) == "Unknown"
 
 
@@ -131,8 +131,9 @@ def test_init(scraper):
 
 def test_scrape_with_sample_data(scraper, sample_html, expected_data):
     """Test scraping with sample data."""
-    with patch.object(scraper, 'get_html') as mock_get_html, \
-         patch.object(scraper, '_fetch_event_html') as mock_fetch_event_html:
+    with patch.object(scraper, "get_html") as mock_get_html, patch.object(
+        scraper, "_fetch_event_html"
+    ) as mock_fetch_event_html:
         mock_get_html.return_value = sample_html
         mock_fetch_event_html.return_value = sample_html
 
@@ -148,9 +149,20 @@ def test_scrape_with_sample_data(scraper, sample_html, expected_data):
         # Check the structure of a sample event
         sample_event = next(iter(result.values()))
         expected_sample = next(iter(expected_data.values()))
-        for key in ['name', 'source', 'event_type', 'date_start', 'date_end',
-                    'location_name', 'region', 'is_canceled', 'is_multi_day_event',
-                    'ride_days', 'ride_manager', 'ride_id']:
+        for key in [
+            "name",
+            "source",
+            "event_type",
+            "date_start",
+            "date_end",
+            "location_name",
+            "region",
+            "is_canceled",
+            "is_multi_day_event",
+            "ride_days",
+            "ride_manager",
+            "ride_id",
+        ]:
             assert key in sample_event, f"Missing key {key} in sample event"
             # Don't compare values, just make sure the structure is correct
             assert key in expected_sample, f"Missing key {key} in expected sample"
@@ -158,8 +170,9 @@ def test_scrape_with_sample_data(scraper, sample_html, expected_data):
 
 def test_create_final_output(scraper, sample_html, expected_data):
     """Test final output creation matches expected format."""
-    with patch.object(scraper, 'get_html') as mock_get_html, \
-         patch.object(scraper, '_fetch_event_html') as mock_fetch_event_html:
+    with patch.object(scraper, "get_html") as mock_get_html, patch.object(
+        scraper, "_fetch_event_html"
+    ) as mock_fetch_event_html:
         mock_get_html.return_value = sample_html
         mock_fetch_event_html.return_value = sample_html
 
@@ -178,9 +191,20 @@ def test_create_final_output(scraper, sample_html, expected_data):
         expected_sample = next(iter(expected_data.values()))
 
         # Check key fields match in structure
-        for key in ['name', 'source', 'event_type', 'date_start', 'date_end',
-                    'location_name', 'region', 'is_canceled', 'is_multi_day_event',
-                    'ride_days', 'ride_manager', 'ride_id']:
+        for key in [
+            "name",
+            "source",
+            "event_type",
+            "date_start",
+            "date_end",
+            "location_name",
+            "region",
+            "is_canceled",
+            "is_multi_day_event",
+            "ride_days",
+            "ride_manager",
+            "ride_id",
+        ]:
             assert key in sample_event, f"Missing key {key} in sample event"
             # Don't compare values, just make sure the structure is correct
             assert key in expected_sample, f"Missing key {key} in expected sample"
@@ -188,7 +212,7 @@ def test_create_final_output(scraper, sample_html, expected_data):
 
 def test_extract_event_data(scraper, sample_html):
     """Test extracting event data from HTML."""
-    soup = BeautifulSoup(sample_html, 'html.parser')
+    soup = BeautifulSoup(sample_html, "html.parser")
     events = scraper.extract_event_data(soup)
 
     # Check that we extracted events
@@ -210,28 +234,34 @@ def test_extract_event_data(scraper, sample_html):
         assert "city" in event
         assert "state" in event
         assert "country" in event
-        assert "distances" in event   # Should be present, even if empty for past events
+        assert "distances" in event  # Should be present, even if empty for past events
 
         # Specific checks for the known past event
-        if event.get("ride_id") == "14446":   # Barefoot In New Mexico
+        if event.get("ride_id") == "14446":  # Barefoot In New Mexico
             found_past_event = True
             assert event["name"] == "Barefoot In New Mexico"
             assert event["date_start"] == "2024-12-01"
-            assert event["distances"] == []   # Explicitly check distances are empty
-            assert "results_by_distance" not in event   # Ensure results field is NOT present
-            assert "is_past_event" not in event   # Ensure is_past_event field is NOT present
+            assert event["distances"] == []  # Explicitly check distances are empty
+            assert (
+                "results_by_distance" not in event
+            )  # Ensure results field is NOT present
+            assert (
+                "is_past_event" not in event
+            )  # Ensure is_past_event field is NOT present
             assert event["ride_manager"] == "Marcelle Hughes"
             assert event["location_name"] == "52 San Tomaso Rd., Alamogordo NM"
             assert event["city"] == "Alamogordo"
             assert event["state"] == "NM"
             assert event["country"] == "USA"
 
-    assert found_past_event, "Did not find the expected past event (ride_id 14446) in extracted data"
+    assert (
+        found_past_event
+    ), "Did not find the expected past event (ride_id 14446) in extracted data"
 
 
 def test_helper_functions(scraper, sample_html):
     """Test helper extraction functions individually."""
-    soup = BeautifulSoup(sample_html, 'html.parser')
+    soup = BeautifulSoup(sample_html, "html.parser")
     calendar_rows = soup.find_all("div", class_="calendarRow")
 
     if not calendar_rows:
@@ -247,7 +277,9 @@ def test_helper_functions(scraper, sample_html):
     assert isinstance(is_canceled, bool)
 
     # Test region, date, location extraction
-    region, date_start, location_name = scraper._extract_region_date_location(sample_row)
+    region, date_start, location_name = scraper._extract_region_date_location(
+        sample_row
+    )
     if region:  # Region could be None if not found
         assert isinstance(region, str)
     if date_start:  # Date could be None if not found
@@ -276,14 +308,14 @@ def test_consolidate_events(scraper):
             "ride_id": "12345",
             "name": "Test Event",
             "date_start": "2025-06-01",
-            "distances": [{"distance": "50", "date": "2025-06-01"}]
+            "distances": [{"distance": "50", "date": "2025-06-01"}],
         },
         {
             "ride_id": "12345",
             "name": "Test Event",
             "date_start": "2025-06-02",
-            "distances": [{"distance": "50", "date": "2025-06-02"}]
-        }
+            "distances": [{"distance": "50", "date": "2025-06-02"}],
+        },
     ]
 
     result = scraper._consolidate_events(sample_events)
@@ -300,7 +332,7 @@ def test_consolidate_events(scraper):
 @pytest.fixture
 def inconsistent_address_html():
     """Fixture providing HTML content with inconsistent address format."""
-    html = '''<div class="calendarRow">
+    html = """<div class="calendarRow">
         <span class="rideName details" tag="67890">Event with Bad Address</span>
         <td class="region">East</td>
         <td class="bold">07/20/2025</td>
@@ -310,33 +342,37 @@ def inconsistent_address_html():
                 <tr><td>Location: This is not a standard address format, see if LLM can fix it. City: Unknown, State: ?, Zip: 12345</td></tr>
             </table>
         </tr>
-    </div>'''
-    return BeautifulSoup(html, 'html.parser').find('div', class_='calendarRow')
-
-# Test integration with LLM_Utility for inconsistent address
+    </div>"""
+    return BeautifulSoup(html, "html.parser").find("div", class_="calendarRow")
 
 
-@patch('app.scrapers.aerc_scraper.LLM_Utility')
-def test_extract_event_data_with_llm(mock_llm_utility, scraper, inconsistent_address_html, mock_config):  # Added mock_config
-    mock_instance = mock_llm_utility.return_value
-    mock_instance.extract_address_from_html.return_value = {
+# Test integration with GeminiUtility for inconsistent address
+
+
+@patch("app.scrapers.aerc_scraper.GeminiUtility")
+def test_extract_event_data_with_llm(
+    mock_gemini_utility, scraper, inconsistent_address_html, mock_config
+):  # Added mock_config
+    # Mock the static method extract_address_from_html
+    mock_gemini_utility.extract_address_from_html.return_value = {
         "address": "789 Pine Rd",
         "city": "Lakewood",
         "state": "CO",
-        "zip_code": "80123"
+        "zip_code": "80123",
     }
 
     # Wrap the single row HTML in a structure that extract_event_data expects
-    html_content = f'<div>{inconsistent_address_html}</div>'
-    soup = BeautifulSoup(html_content, 'html.parser')
+    html_content = f"<div>{inconsistent_address_html}</div>"
+    soup = BeautifulSoup(html_content, "html.parser")
 
     events = scraper.extract_event_data(soup)
 
-    # Assert that LLM_Utility was instantiated and its method was called
-    mock_llm_utility.assert_called_once()
-    mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+    # Assert that GeminiUtility method was called
+    mock_gemini_utility.extract_address_from_html.assert_called_once_with(
+        str(inconsistent_address_html)
+    )
 
-    # Assert that the event data was updated with LLM results
+    # Assert that the event data was updated with Gemini results
     assert len(events) == 1
     event = events[0]
     assert event["ride_id"] == "67890"
@@ -345,61 +381,75 @@ def test_extract_event_data_with_llm(mock_llm_utility, scraper, inconsistent_add
     assert event["state"] == "CO"
     assert event["zip_code"] == "80123"
 
-# Test integration with LLM_Utility when LLMAPIError occurs
+
+# Test integration with GeminiUtility when LLMAPIError occurs
 
 
-@patch('app.scrapers.aerc_scraper.LLM_Utility')
-def test_extract_event_data_llm_api_error(mock_llm_utility, scraper, inconsistent_address_html, mock_config):
+@patch("app.scrapers.aerc_scraper.GeminiUtility")
+def test_extract_event_data_llm_api_error(
+    mock_gemini_utility, scraper, inconsistent_address_html, mock_config
+):
     # Patch the warning method directly on the scraper's logging_manager instance
-    with patch.object(scraper.logging_manager, 'warning') as mock_warning:
-        mock_instance = mock_llm_utility.return_value
-        mock_instance.extract_address_from_html.side_effect = LLMAPIError("API error")
+    with patch.object(scraper.logging_manager, "warning") as mock_warning:
+        mock_gemini_utility.extract_address_from_html.side_effect = LLMAPIError("API error")
 
-        html_content = f'<div>{inconsistent_address_html}</div>'
-        soup = BeautifulSoup(html_content, 'html.parser')
+        html_content = f"<div>{inconsistent_address_html}</div>"
+        soup = BeautifulSoup(html_content, "html.parser")
 
         events = scraper.extract_event_data(soup)
 
-        # Assert that LLM_Utility was called
-        mock_llm_utility.assert_called_once()
-        mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+        # Assert that GeminiUtility method was called
+        mock_gemini_utility.extract_address_from_html.assert_called_once_with(
+            str(inconsistent_address_html)
+        )
 
         # Assert that an error was logged using the warning method on scraper.logging_manager
-        mock_warning.assert_any_call(f"LLM address extraction failed for ride 67890: API error", emoji=":x:")
+        mock_warning.assert_any_call(
+            f"Gemini address extraction failed for ride 67890: API error", emoji=":x:"
+        )
 
-    # Assert that the event data does NOT contain LLM results
+    # Assert that the event data does NOT contain Gemini results
     assert len(events) == 1
     event = events[0]
     assert event["ride_id"] == "67890"
     # Check that the original, unparsed location is still there or fields are missing/None
-    assert "location_name" in event   # The original location_name should still be present
-    assert event.get("city") is None   # LLM fields should not be present or be None
+    assert (
+        "location_name" in event
+    )  # The original location_name should still be present
+    assert event.get("city") is None  # Gemini fields should not be present or be None
     assert event.get("state") is None
     assert event.get("zip_code") is None
 
-# Test integration with LLM_Utility when LLMContentError occurs
+
+# Test integration with GeminiUtility when LLMContentError occurs
 
 
-@patch('app.scrapers.aerc_scraper.LLM_Utility')
-def test_extract_event_data_llm_content_error(mock_llm_utility, scraper, inconsistent_address_html, mock_config):
+@patch("app.scrapers.aerc_scraper.GeminiUtility")
+def test_extract_event_data_llm_content_error(
+    mock_gemini_utility, scraper, inconsistent_address_html, mock_config
+):
     # Patch the warning method directly on the scraper's logging_manager instance
-    with patch.object(scraper.logging_manager, 'warning') as mock_warning:
-        mock_instance = mock_llm_utility.return_value
-        mock_instance.extract_address_from_html.side_effect = LLMContentError("Content error")
+    with patch.object(scraper.logging_manager, "warning") as mock_warning:
+        mock_gemini_utility.extract_address_from_html.side_effect = LLMContentError(
+            "Content error"
+        )
 
-        html_content = f'<div>{inconsistent_address_html}</div>'
-        soup = BeautifulSoup(html_content, 'html.parser')
+        html_content = f"<div>{inconsistent_address_html}</div>"
+        soup = BeautifulSoup(html_content, "html.parser")
 
         events = scraper.extract_event_data(soup)
 
-        # Assert that LLM_Utility was called
-        mock_llm_utility.assert_called_once()
-        mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+        # Assert that GeminiUtility method was called
+        mock_gemini_utility.extract_address_from_html.assert_called_once_with(
+            str(inconsistent_address_html)
+        )
 
         # Assert that an error was logged using the warning method on scraper.logging_manager
-        mock_warning.assert_any_call(f"LLM address extraction failed for ride 67890: Content error", emoji=":x:")
+        mock_warning.assert_any_call(
+            f"Gemini address extraction failed for ride 67890: Content error", emoji=":x:"
+        )
 
-    # Assert that the event data does NOT contain LLM results
+    # Assert that the event data does NOT contain Gemini results
     assert len(events) == 1
     event = events[0]
     assert event["ride_id"] == "67890"
@@ -408,29 +458,37 @@ def test_extract_event_data_llm_content_error(mock_llm_utility, scraper, inconsi
     assert event.get("state") is None
     assert event.get("zip_code") is None
 
-# Test integration with LLM_Utility when LLMJsonParsingError occurs
+
+# Test integration with GeminiUtility when LLMJsonParsingError occurs
 
 
-@patch('app.scrapers.aerc_scraper.LLM_Utility')
-def test_extract_event_data_llm_json_parsing_error(mock_llm_utility, scraper, inconsistent_address_html, mock_config):
+@patch("app.scrapers.aerc_scraper.GeminiUtility")
+def test_extract_event_data_llm_json_parsing_error(
+    mock_gemini_utility, scraper, inconsistent_address_html, mock_config
+):
     # Patch the warning method directly on the scraper's logging_manager instance
-    with patch.object(scraper.logging_manager, 'warning') as mock_warning:
-        mock_instance = mock_llm_utility.return_value
-        mock_instance.extract_address_from_html.side_effect = LLMJsonParsingError("JSON parsing error")
+    with patch.object(scraper.logging_manager, "warning") as mock_warning:
+        mock_gemini_utility.extract_address_from_html.side_effect = LLMJsonParsingError(
+            "JSON parsing error"
+        )
 
-        html_content = f'<div>{inconsistent_address_html}</div>'
-        soup = BeautifulSoup(html_content, 'html.parser')
+        html_content = f"<div>{inconsistent_address_html}</div>"
+        soup = BeautifulSoup(html_content, "html.parser")
 
         events = scraper.extract_event_data(soup)
 
-        # Assert that LLM_Utility was called
-        mock_llm_utility.assert_called_once()
-        mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+        # Assert that GeminiUtility method was called
+        mock_gemini_utility.extract_address_from_html.assert_called_once_with(
+            str(inconsistent_address_html)
+        )
 
         # Assert that an error was logged using the warning method on scraper.logging_manager
-        mock_warning.assert_any_call(f"LLM address extraction failed for ride 67890: JSON parsing error", emoji=":x:")
+        mock_warning.assert_any_call(
+            f"Gemini address extraction failed for ride 67890: JSON parsing error",
+            emoji=":x:",
+        )
 
-    # Assert that the event data does NOT contain LLM results
+    # Assert that the event data does NOT contain Gemini results
     assert len(events) == 1
     event = events[0]
     assert event["ride_id"] == "67890"

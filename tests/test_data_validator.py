@@ -20,7 +20,7 @@ def sample_event_data():
         "country": "USA",
         "ride_manager": "Test Manager",
         "ride_days": 1,
-        "event_type": "endurance"
+        "event_type": "endurance",
     }
 
 
@@ -65,65 +65,87 @@ def test_validate_event_data_invalid(data_validator):
         data_validator._validate_event_data(invalid_data)
 
 
-def test_validate_database_operation_insert_not_found(data_validator, sample_event_data, mock_db_manager):
+def test_validate_database_operation_insert_not_found(
+    data_validator, sample_event_data, mock_db_manager
+):
     """Test validation when an inserted event is not found."""
     # Mock get_event to return None (not found)
     mock_db_manager.get_event.return_value = None
 
     # Validate with expected operation "insert"
-    success, errors = data_validator.validate_database_operation(sample_event_data, "insert")
+    success, errors = data_validator.validate_database_operation(
+        sample_event_data, "insert"
+    )
 
     assert success is False
     assert len(errors) == 1
     assert "not found in database" in errors[0]
-    mock_db_manager.get_event.assert_called_once_with(sample_event_data["source"], sample_event_data["ride_id"])
+    mock_db_manager.get_event.assert_called_once_with(
+        sample_event_data["source"], sample_event_data["ride_id"]
+    )
 
 
-def test_validate_database_operation_delete_still_exists(data_validator, sample_event_data, mock_db_manager):
+def test_validate_database_operation_delete_still_exists(
+    data_validator, sample_event_data, mock_db_manager
+):
     """Test validation when a deleted event still exists."""
     # Mock get_event to return some data (event still exists after delete)
     mock_db_manager.get_event.return_value = sample_event_data.copy()
 
     # Validate with expected operation "delete"
-    success, errors = data_validator.validate_database_operation(sample_event_data, "delete")
+    success, errors = data_validator.validate_database_operation(
+        sample_event_data, "delete"
+    )
 
     assert success is False
     assert len(errors) == 1
     assert "still exists in database" in errors[0]
 
 
-def test_validate_database_operation_insert_success(data_validator, sample_event_data, mock_db_manager):
+def test_validate_database_operation_insert_success(
+    data_validator, sample_event_data, mock_db_manager
+):
     """Test successful validation of an inserted event."""
     # Mock get_event to return matching data
     mock_db_manager.get_event.return_value = sample_event_data.copy()
 
     # Patch the _compare_event_data method to return success
-    with patch.object(data_validator, '_compare_event_data') as mock_compare:
+    with patch.object(data_validator, "_compare_event_data") as mock_compare:
         mock_compare.return_value = (True, None)
 
         # Validate with expected operation "insert"
-        success, errors = data_validator.validate_database_operation(sample_event_data, "insert")
+        success, errors = data_validator.validate_database_operation(
+            sample_event_data, "insert"
+        )
 
         assert success is True
         assert errors is None
-        mock_compare.assert_called_once_with(sample_event_data, sample_event_data.copy())
+        mock_compare.assert_called_once_with(
+            sample_event_data, sample_event_data.copy()
+        )
 
 
-def test_validate_database_operation_update_success(data_validator, sample_event_data, mock_db_manager):
+def test_validate_database_operation_update_success(
+    data_validator, sample_event_data, mock_db_manager
+):
     """Test successful validation of an updated event."""
     # Mock get_event to return matching data
     mock_db_manager.get_event.return_value = sample_event_data.copy()
 
     # Patch the _compare_event_data method to return success
-    with patch.object(data_validator, '_compare_event_data') as mock_compare:
+    with patch.object(data_validator, "_compare_event_data") as mock_compare:
         mock_compare.return_value = (True, None)
 
         # Validate with expected operation "update"
-        success, errors = data_validator.validate_database_operation(sample_event_data, "update")
+        success, errors = data_validator.validate_database_operation(
+            sample_event_data, "update"
+        )
 
         assert success is True
         assert errors is None
-        mock_compare.assert_called_once_with(sample_event_data, sample_event_data.copy())
+        mock_compare.assert_called_once_with(
+            sample_event_data, sample_event_data.copy()
+        )
 
 
 def test_validate_deletion_success(data_validator, mock_db_manager):
@@ -163,7 +185,7 @@ def test_compare_event_data_match(data_validator):
         "date_start": "2023-05-15",
         "location_name": "Test Location",
         "distances": [{"distance": "50", "date": "2023-05-15"}],
-        "control_judges": [{"name": "Judge A", "role": "Control Judge"}]
+        "control_judges": [{"name": "Judge A", "role": "Control Judge"}],
     }
 
     # Create a copy with the same values for comparing
@@ -182,14 +204,14 @@ def test_compare_event_data_missing_field(data_validator):
         "source": "AERC",
         "ride_id": "test-123",
         "name": "Test Event",
-        "region": "West"
+        "region": "West",
     }
 
     stored_data = {
         "source": "AERC",
         "ride_id": "test-123",
         # Missing "name" field
-        "region": "West"
+        "region": "West",
     }
 
     # Compare the data
@@ -206,14 +228,14 @@ def test_compare_event_data_value_mismatch(data_validator):
         "source": "AERC",
         "ride_id": "test-123",
         "name": "Test Event",
-        "region": "West"
+        "region": "West",
     }
 
     stored_data = {
         "source": "AERC",
         "ride_id": "test-123",
         "name": "Different Event Name",  # Different name
-        "region": "West"
+        "region": "West",
     }
 
     # Compare the data
@@ -231,7 +253,7 @@ def test_compare_event_data_jsonb_fields(data_validator):
         "source": "AERC",
         "ride_id": "test-123",
         "distances": [{"distance": "50", "date": "2023-05-15"}],
-        "control_judges": [{"name": "Judge A", "role": "Control Judge"}]
+        "control_judges": [{"name": "Judge A", "role": "Control Judge"}],
     }
 
     # Stored data with JSONB fields as strings
@@ -239,7 +261,7 @@ def test_compare_event_data_jsonb_fields(data_validator):
         "source": "AERC",
         "ride_id": "test-123",
         "distances": json.dumps([{"distance": "50", "date": "2023-05-15"}]),
-        "control_judges": json.dumps([{"name": "Judge A", "role": "Control Judge"}])
+        "control_judges": json.dumps([{"name": "Judge A", "role": "Control Judge"}]),
     }
 
     # Compare the data
@@ -251,11 +273,7 @@ def test_compare_event_data_jsonb_fields(data_validator):
 
 def test_compare_event_data_skip_db_fields(data_validator):
     """Test that database-generated fields are skipped in comparison."""
-    expected_data = {
-        "source": "AERC",
-        "ride_id": "test-123",
-        "name": "Test Event"
-    }
+    expected_data = {"source": "AERC", "ride_id": "test-123", "name": "Test Event"}
 
     stored_data = {
         "source": "AERC",
@@ -263,7 +281,7 @@ def test_compare_event_data_skip_db_fields(data_validator):
         "name": "Test Event",
         "id": 42,  # Database-generated ID
         "created_at": "2023-05-15T10:00:00Z",  # Database timestamp
-        "updated_at": "2023-05-15T11:00:00Z"   # Database timestamp
+        "updated_at": "2023-05-15T11:00:00Z",  # Database timestamp
     }
 
     # Compare the data
@@ -278,14 +296,14 @@ def test_compare_event_data_invalid_jsonb(data_validator):
     expected_data = {
         "source": "AERC",
         "ride_id": "test-123",
-        "distances": [{"distance": "50", "date": "2023-05-15"}]
+        "distances": [{"distance": "50", "date": "2023-05-15"}],
     }
 
     # Stored data with invalid JSON
     stored_data = {
         "source": "AERC",
         "ride_id": "test-123",
-        "distances": "{invalid json"
+        "distances": "{invalid json",
     }
 
     # Compare the data

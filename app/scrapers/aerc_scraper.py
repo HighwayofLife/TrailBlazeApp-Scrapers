@@ -10,7 +10,7 @@ from app.base_scraper import BaseScraper
 from app.utils import parse_date, extract_city_state_country
 from app.exceptions import HTMLDownloadError
 from app.config import get_settings
-from ..llm_utility import LLM_Utility
+from ..gemini_utility import GeminiUtility
 from ..exceptions import LLMAPIError, LLMContentError, LLMJsonParsingError
 
 
@@ -284,33 +284,32 @@ class AERCScraper(BaseScraper):
                     # Using the whole row for now, might refine later if needed
                     html_snippet = str(row)
                     if html_snippet:
-                        self.logging_manager.debug(f"Attempting LLM address extraction for ride {ride_id}", emoji=":robot:")
-                        llm_utility = LLM_Utility()
-                        llm_address_data = llm_utility.extract_address_from_html(html_snippet)
+                        self.logging_manager.debug(f"Attempting Gemini address extraction for ride {ride_id}", emoji=":robot:")
+                        llm_address_data = GeminiUtility.extract_address_from_html(html_snippet)
                         if llm_address_data:
-                            self.logging_manager.info(f"LLM successfully extracted address data for ride {ride_id}", emoji=":white_check_mark:")
+                            self.logging_manager.info(f"Gemini successfully extracted address data for ride {ride_id}", emoji=":white_check_mark:")
                             self.metrics_manager.increment("llm_address_extractions_success")
                         else:
-                            # LLM ran but didn't find/return data
-                            self.logging_manager.info(f"LLM utility ran but found no address data for ride {ride_id}", emoji=":magnifying_glass_tilted_left:")
+                            # Gemini ran but didn't find/return data
+                            self.logging_manager.info(f"Gemini utility ran but found no address data for ride {ride_id}", emoji=":magnifying_glass_tilted_left:")
                             self.metrics_manager.increment("llm_address_extractions_nodata")
                     else:
-                        self.logging_manager.warning(f"Empty HTML snippet for LLM processing for ride {ride_id}", emoji=":warning:")
+                        self.logging_manager.warning(f"Empty HTML snippet for Gemini processing for ride {ride_id}", emoji=":warning:")
 
                 except (LLMAPIError, LLMContentError, LLMJsonParsingError) as e:
-                    self.logging_manager.warning(f"LLM address extraction failed for ride {ride_id}: {e}", emoji=":x:")
+                    self.logging_manager.warning(f"Gemini address extraction failed for ride {ride_id}: {e}", emoji=":x:")
                     self.metrics_manager.increment("llm_address_extractions_error")
                 except (ValueError, TypeError, KeyError, AttributeError, requests.RequestException) as e:
-                    # Catch specific but unexpected errors during LLM call
-                    self.logging_manager.error(f"Unexpected error during LLM address extraction for ride {ride_id}: {e}", emoji=":rotating_light:")
+                    # Catch specific but unexpected errors during Gemini call
+                    self.logging_manager.error(f"Unexpected error during Gemini address extraction for ride {ride_id}: {e}", emoji=":rotating_light:")
                     self.metrics_manager.increment("llm_address_extractions_error")
 
-                # Update event_data, prioritizing LLM results
+                # Update event_data, prioritizing Gemini results
                 event_data['address'] = llm_address_data.get('address') if llm_address_data else None
-                # Update location_name with the address if it's available from LLM
+                # Update location_name with the address if it's available from Gemini
                 if llm_address_data and llm_address_data.get('address'):
                     event_data['location_name'] = llm_address_data.get('address')
-                # Keep existing city/state if LLM doesn't provide one
+                # Keep existing city/state if Gemini doesn't provide one
                 event_data['city'] = (llm_address_data.get('city') if llm_address_data else None) or event_data.get('city')
                 event_data['state'] = (llm_address_data.get('state') if llm_address_data else None) or event_data.get('state')
                 event_data['zip_code'] = llm_address_data.get('zip_code') if llm_address_data else None

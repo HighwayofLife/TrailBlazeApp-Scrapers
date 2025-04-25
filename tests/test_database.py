@@ -56,7 +56,7 @@ def sample_event():
         "description": "A test event.",
         "control_judges": [{"name": "Judge Judy", "role": "Control Judge"}],
         "distances": [{"distance": "50", "date": "2025-01-01"}],
-        "directions": "Go north."
+        "directions": "Go north.",
     }
 
 
