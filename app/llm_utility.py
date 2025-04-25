@@ -55,21 +55,52 @@ JSON Output:
             LLMJsonParsingError: If the LLM response is not valid JSON.
         """
         config = get_settings()
-        if not config.LLM_API_ENDPOINT or not config.LLM_API_KEY:
-            logger.warning("LLM_API_ENDPOINT or LLM_API_KEY is not configured. Skipping LLM extraction.")
+        if not config.LLM_API_KEY:
+            logger.warning("LLM_API_KEY is not configured. Skipping LLM extraction.")
             return None
+
+        # Determine which API URL to use (prefer the full LLM_API_URL if available)
+        api_url = config.LLM_API_URL
+        if not api_url:
+            if not config.LLM_API_ENDPOINT or not config.MODEL_ID:
+                logger.warning("Neither LLM_API_URL nor both LLM_API_ENDPOINT and MODEL_ID are configured. Skipping LLM extraction.")
+                return None
+
+            # Check if we're using Gemini 2.0 models which use a different API version
+            if "2.0" in config.MODEL_ID:
+                # Gemini 2.0 models use v1alpha/v1beta
+                api_url = f"{config.LLM_API_ENDPOINT.rstrip('/')}/v1beta/models/{config.MODEL_ID}:generateContent"
+            else:
+                # Gemini 1.0 models use v1
+                api_url = f"{config.LLM_API_ENDPOINT.rstrip('/')}/v1/models/{config.MODEL_ID}:generateContent"
+
+            logger.info(f"Using constructed API URL: {api_url}")
 
         prompt = cls._construct_prompt(html_snippet)
         headers = {
-            "Authorization": f"Bearer {config.LLM_API_KEY}",
             "Content-Type": "application/json",
         }
-        # This payload structure is hypothetical and depends on the specific LLM API
+
+        # For Google's Gemini API, the API key is passed as a query parameter, not in the Authorization header
+        if "?" not in api_url:
+            api_url = f"{api_url}?key={config.LLM_API_KEY}"
+        else:
+            api_url = f"{api_url}&key={config.LLM_API_KEY}"
+
+        logger.info(f"Using API URL with key: {api_url.split('?')[0]}?key=REDACTED")
+
+        # Payload structure for Google's Gemini API v1
         payload = {
-            "prompt": prompt,
-            "max_tokens": 150,  # Adjust as needed
-            "temperature": 0.2,  # Adjust for desired creativity/determinism
-            # Add other parameters required by the specific LLM API
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.2,
+                "maxOutputTokens": 1024,  # Increased from 150 to allow for more complex responses
+            }
         }
 
         last_exception: Optional[Exception] = LLMAPIError("LLM request failed after all retries.")  # Initialize with a default error
@@ -77,36 +108,43 @@ JSON Output:
         for attempt in range(config.LLM_MAX_RETRIES):
             try:
                 response = requests.post(
-                    config.LLM_API_ENDPOINT,
+                    api_url,
                     headers=headers,
                     json=payload,
                     timeout=config.LLM_REQUEST_TIMEOUT_SECONDS,
                 )
                 response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
 
-                # --- LLM Response Handling (Highly dependent on the specific LLM API) ---
-                # 1. Check for LLM-specific errors (e.g., content flags)
-                # This part needs to be adapted based on the actual API response structure
+                # --- LLM Response Handling for Gemini API ---
+                # 1. Check for LLM-specific errors
                 response_data = response.json()
-                if response_data.get("error"):  # Hypothetical error field
-                    error_msg = f"LLM API error: {response_data['error']}"
+                if response_data.get("error"):
+                    error_msg = f"Gemini API error: {response_data['error']}"
                     logger.error(error_msg)
                     # Don't retry on definitive API errors returned in the response body
                     raise LLMContentError(error_msg)
-                if response_data.get("blocked", False):  # Hypothetical content flag
-                    logger.warning("LLM response blocked due to content moderation.")
+
+                # Check for content filtering/safety issues
+                if "promptFeedback" in response_data and response_data["promptFeedback"].get("blockReason"):
+                    block_reason = response_data["promptFeedback"]["blockReason"]
+                    logger.warning(f"Gemini response blocked due to content moderation: {block_reason}")
                     # Don't retry on content moderation blocks
-                    raise LLMContentError("LLM response blocked due to content moderation.")
+                    raise LLMContentError(f"Gemini response blocked due to content moderation: {block_reason}")
 
                 # 2. Extract the actual text content containing the JSON
-                # This is also hypothetical - adjust based on the API
-                llm_output_text = response_data.get("choices", [{}])[0].get("text", "").strip()
+                # Navigate Gemini API response structure
+                llm_output_text = ""
+                if "candidates" in response_data and response_data["candidates"]:
+                    candidate = response_data["candidates"][0]
+                    if "content" in candidate and "parts" in candidate["content"]:
+                        for part in candidate["content"]["parts"]:
+                            if "text" in part:
+                                llm_output_text += part["text"]
+
                 if not llm_output_text:
-                    llm_output_text = response_data.get("result", "").strip()  # Alternative structure
-                if not llm_output_text:
-                    logger.error(f"Could not extract text from LLM response: {response_data}")
+                    logger.error(f"Could not extract text from Gemini response: {response_data}")
                     # Don't retry if the response structure is wrong
-                    raise LLMContentError("Could not extract text from LLM response.")
+                    raise LLMContentError("Could not extract text from Gemini response.")
 
                 # 3. Parse the JSON
                 try:
@@ -191,12 +229,16 @@ if __name__ == "__main__":
 
     # To run this test block:
     # 1. Create a .env file in the project root (TrailBlazeApp-Scrapers)
-    # 2. Add your LLM endpoint and key:
-    #    LLM_API_ENDPOINT="YOUR_ENDPOINT_HERE"
+    # 2. Add your LLM endpoint, key, and model ID:
+    #    LLM_API_ENDPOINT="https://generativelanguage.googleapis.com"
     #    LLM_API_KEY="YOUR_API_KEY_HERE"
+    #    MODEL_ID="gemini-2.0-flash-lite"
+    #    LLM_API_URL="https://generativelanguage.googleapis.com/v1beta/models/${MODEL_ID}:generateContent"
     # 3. Or set environment variables:
-    #    export LLM_API_ENDPOINT="YOUR_ENDPOINT"
-    #    export LLM_API_KEY="YOUR_KEY"
+    #    export LLM_API_ENDPOINT="https://generativelanguage.googleapis.com"
+    #    export LLM_API_KEY="YOUR_API_KEY"
+    #    export MODEL_ID="gemini-2.0-flash-lite"
+    #    export LLM_API_URL="https://generativelanguage.googleapis.com/v1beta/models/${MODEL_ID}:generateContent"
 
     # For local development, you might want to use dotenv:
     # from dotenv import load_dotenv
@@ -205,11 +247,27 @@ if __name__ == "__main__":
     # Use the same settings mechanism as the rest of the application
     settings = get_settings()
 
-    if not settings.LLM_API_ENDPOINT or not settings.LLM_API_KEY:
-        print("\nWARNING: LLM_API_ENDPOINT and LLM_API_KEY environment variables not set.")
+    # Check API key and either LLM_API_URL or both LLM_API_ENDPOINT and MODEL_ID
+    if not settings.LLM_API_KEY:
+        print("\nWARNING: LLM_API_KEY environment variable not set.")
+        print("Skipping live LLM test. Create/check .env file or set environment variables.")
+    elif not settings.LLM_API_URL and (not settings.LLM_API_ENDPOINT or not settings.MODEL_ID):
+        print("\nWARNING: You must provide either LLM_API_URL or both LLM_API_ENDPOINT and MODEL_ID.")
         print("Skipping live LLM test. Create/check .env file or set environment variables.")
     else:
-        print(f"--- Testing LLM Utility with endpoint: {settings.LLM_API_ENDPOINT} ---")
+        # Determine which API URL to use for the test
+        api_url = settings.LLM_API_URL
+        if not api_url and settings.LLM_API_ENDPOINT and settings.MODEL_ID:
+            # Check if we're using Gemini 2.0 models which use a different API version
+            if "2.0" in settings.MODEL_ID:
+                # Gemini 2.0 models use v1beta
+                api_url = f"{settings.LLM_API_ENDPOINT.rstrip('/')}/v1beta/models/{settings.MODEL_ID}:generateContent"
+            else:
+                # Gemini 1.0 models use v1
+                api_url = f"{settings.LLM_API_ENDPOINT.rstrip('/')}/v1/models/{settings.MODEL_ID}:generateContent"
+
+        print(f"--- Testing LLM Utility with API URL: {api_url} ---")
+        print(f"--- Model ID: {settings.MODEL_ID or 'Not specified directly'} ---")
         sample_html = """
         <div class="contact-info">
             <p>John Doe</p>

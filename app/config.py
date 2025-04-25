@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # LLM settings
     LLM_API_ENDPOINT: Optional[str] = None  # Endpoint URL for the LLM API
     LLM_API_KEY: Optional[str] = None       # API Key for the LLM API
+    MODEL_ID: Optional[str] = None          # Model ID for the LLM API
+    LLM_API_URL: Optional[str] = None       # Full API URL including model ID
 
     # LLM Retry Settings
     LLM_MAX_RETRIES: int = 3
