@@ -26,8 +26,9 @@ class DataValidator:
         self.db_manager = db_manager
         self.logger = get_logger(__name__).logger
 
-    def validate_database_operation(self, event_data: Dict[str, Any],
-                                   expected_operation: str = "insert_or_update") -> Tuple[bool, Optional[List[str]]]:
+    def validate_database_operation(
+        self, event_data: Dict[str, Any], expected_operation: str = "insert_or_update"
+    ) -> Tuple[bool, Optional[List[str]]]:
         """
         Validate that a database operation was successful and data matches what was expected.
 
@@ -50,7 +51,10 @@ class DataValidator:
         stored_event = self.db_manager.get_event(source, ride_id)
 
         # If expected operation was insert, the event should exist
-        if expected_operation in ["insert", "insert_or_update"] and stored_event is None:
+        if (
+            expected_operation in ["insert", "insert_or_update"]
+            and stored_event is None
+        ):
             error_msg = f"Event {source}-{ride_id} was not found in database after insert operation"
             self.logger.error(error_msg)
             return False, [error_msg]
@@ -62,12 +66,17 @@ class DataValidator:
             return False, [error_msg]
 
         # For insert or update, compare the data
-        if expected_operation in ["insert", "update", "insert_or_update"] and stored_event is not None:
+        if (
+            expected_operation in ["insert", "update", "insert_or_update"]
+            and stored_event is not None
+        ):
             return self._compare_event_data(event_data, stored_event)
 
         return True, None
 
-    def validate_deletion(self, source: str, ride_id: str) -> Tuple[bool, Optional[List[str]]]:
+    def validate_deletion(
+        self, source: str, ride_id: str
+    ) -> Tuple[bool, Optional[List[str]]]:
         """
         Validate that an event was successfully deleted from the database.
 
@@ -106,8 +115,9 @@ class DataValidator:
         except Exception as e:
             raise ValidationError(f"Invalid event data: {str(e)}") from e
 
-    def _compare_event_data(self, expected_data: Dict[str, Any],
-                           stored_data: Dict[str, Any]) -> Tuple[bool, Optional[List[str]]]:
+    def _compare_event_data(
+        self, expected_data: Dict[str, Any], stored_data: Dict[str, Any]
+    ) -> Tuple[bool, Optional[List[str]]]:
         """
         Compare expected event data with what is stored in the database.
 
@@ -139,7 +149,9 @@ class DataValidator:
                 try:
                     stored_value = json.loads(stored_value)
                 except json.JSONDecodeError:
-                    discrepancies.append(f"Could not parse JSONB field '{key}': {stored_value}")
+                    discrepancies.append(
+                        f"Could not parse JSONB field '{key}': {stored_value}"
+                    )
                     continue
 
             # Compare values

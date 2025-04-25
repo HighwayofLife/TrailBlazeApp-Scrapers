@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 
+
 @pytest.fixture(autouse=True)
 def mock_config():
     """

@@ -37,8 +37,8 @@ class LoggingManager:
 
             # Create formatter
             formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                datefmt='%Y-%m-%d %H:%M:%S'
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
             )
             console_handler.setFormatter(formatter)
 
@@ -98,9 +98,7 @@ class LoggingManager:
             emoji (Optional[str]): Emoji shortcode to prepend to the message
         """
         formatted_message = self._format_message(
-            message,
-            emoji or ":skull:",
-            Fore.RED + Style.BRIGHT
+            message, emoji or ":skull:", Fore.RED + Style.BRIGHT
         )
         self.logger.critical(formatted_message)
 
@@ -117,7 +115,9 @@ class LoggingManager:
             str: Formatted message
         """
         if emoji:
-            return f"{emojize(emoji, language='alias')} {color}{message}{Style.RESET_ALL}"
+            return (
+                f"{emojize(emoji, language='alias')} {color}{message}{Style.RESET_ALL}"
+            )
         return f"{color}{message}{Style.RESET_ALL}"
 
 

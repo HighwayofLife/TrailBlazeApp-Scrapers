@@ -27,13 +27,19 @@ class DatabaseManager:
         self.db_config = db_config
         self.scraper = scraper
         self.logger = get_logger(__name__).logger
-# Validate required db_config fields
-        required_fields = ['user', 'password', 'host', 'port', 'database']
+        # Validate required db_config fields
+        required_fields = ["user", "password", "host", "port", "database"]
         missing = [f for f in required_fields if not db_config.get(f)]
         if missing:
-            self.logger.error(f"Missing required database config fields: {missing}. db_config: {db_config}")
-            print(f"Missing required database config fields: {missing}. db_config: {db_config}")
-            raise ValueError(f"Missing required database config fields: {missing}. db_config: {db_config}")
+            self.logger.error(
+                f"Missing required database config fields: {missing}. db_config: {db_config}"
+            )
+            print(
+                f"Missing required database config fields: {missing}. db_config: {db_config}"
+            )
+            raise ValueError(
+                f"Missing required database config fields: {missing}. db_config: {db_config}"
+            )
 
         # Use db_url if provided (for testing), else build from db_config
         if db_url:
@@ -75,25 +81,27 @@ class DatabaseManager:
         Returns:
             bool: True if operation was successful, False otherwise
         """
-        source = event_data['source']
-        ride_id = event_data['ride_id']
+        source = event_data["source"]
+        ride_id = event_data["ride_id"]
 
         session = self.Session()
         try:
-            event = session.query(Event).filter_by(source=source, ride_id=ride_id).first()
+            event = (
+                session.query(Event).filter_by(source=source, ride_id=ride_id).first()
+            )
             if event:
                 # Update all fields
                 for key, value in event_data.items():
                     if hasattr(event, key):
                         setattr(event, key, value)
                 if self.scraper:
-                    self.scraper.metrics_manager.increment('database_updates')
+                    self.scraper.metrics_manager.increment("database_updates")
                 self.logger.info(f"Updated event: {source} - {ride_id}")
             else:
                 event = Event(**event_data)
                 session.add(event)
                 if self.scraper:
-                    self.scraper.metrics_manager.increment('database_inserts')
+                    self.scraper.metrics_manager.increment("database_inserts")
                 self.logger.info(f"Inserted new event: {source} - {ride_id}")
             session.commit()
             return True
@@ -117,7 +125,9 @@ class DatabaseManager:
         """
         session = self.Session()
         try:
-            event = session.query(Event).filter_by(source=source, ride_id=ride_id).first()
+            event = (
+                session.query(Event).filter_by(source=source, ride_id=ride_id).first()
+            )
             if event:
                 return self._event_to_dict(event)
             return None
@@ -167,9 +177,13 @@ class DatabaseManager:
         """
         session = self.Session()
         try:
-            event = session.query(Event).filter_by(source=source, ride_id=ride_id).first()
+            event = (
+                session.query(Event).filter_by(source=source, ride_id=ride_id).first()
+            )
             if not event:
-                self.logger.info(f"Event {source}-{ride_id} not found, nothing to delete")
+                self.logger.info(
+                    f"Event {source}-{ride_id} not found, nothing to delete"
+                )
                 return False
             session.delete(event)
             session.commit()
@@ -194,7 +208,9 @@ class DatabaseManager:
         """
         try:
             Base.metadata.create_all(self.engine)
-            self.logger.info("Events table created or already exists (via SQLAlchemy ORM)")
+            self.logger.info(
+                "Events table created or already exists (via SQLAlchemy ORM)"
+            )
         except Exception as e:
             self.logger.error(f"Failed to create tables: {e}")
             raise
@@ -206,8 +222,14 @@ class DatabaseManager:
             "name": event.name,
             "source": event.source,
             "event_type": event.event_type,
-            "date_start": event.date_start.isoformat() if getattr(event, 'date_start', None) else None,
-            "date_end": event.date_end.isoformat() if getattr(event, 'date_end', None) else None,
+            "date_start": (
+                event.date_start.isoformat()
+                if getattr(event, "date_start", None)
+                else None
+            ),
+            "date_end": (
+                event.date_end.isoformat() if getattr(event, "date_end", None) else None
+            ),
             "location_name": event.location_name,
             "city": event.city,
             "state": event.state,
@@ -231,6 +253,12 @@ class DatabaseManager:
             "control_judges": event.control_judges,
             "distances": event.distances,
             "directions": event.directions,
-            "created_at": event.created_at.isoformat() if getattr(event, 'created_at', None) else None,
-            "updated_at": event.updated_at.isoformat() if event.updated_at is not None else None,
+            "created_at": (
+                event.created_at.isoformat()
+                if getattr(event, "created_at", None)
+                else None
+            ),
+            "updated_at": (
+                event.updated_at.isoformat() if event.updated_at is not None else None
+            ),
         }

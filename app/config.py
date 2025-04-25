@@ -34,9 +34,9 @@ class Settings(BaseSettings):
 
     # LLM settings
     LLM_API_ENDPOINT: Optional[str] = None  # Endpoint URL for the LLM API
-    LLM_API_KEY: Optional[str] = None       # API Key for the LLM API
-    MODEL_ID: Optional[str] = None          # Model ID for the LLM API
-    LLM_API_URL: Optional[str] = None       # Full API URL including model ID
+    LLM_API_KEY: Optional[str] = None  # API Key for the LLM API
+    MODEL_ID: Optional[str] = None  # Model ID for the LLM API
+    LLM_API_URL: Optional[str] = None  # Full API URL including model ID
 
     # LLM Retry Settings
     LLM_MAX_RETRIES: int = 3
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     model_config = {
         "env_file": ".env",
-        "extra": "ignore"  # Allow extra fields to be ignored
+        "extra": "ignore",  # Allow extra fields to be ignored
     }
 
 
@@ -73,7 +73,7 @@ def get_db_config() -> Dict[str, Any]:
         "port": settings.DB_PORT,
         "database": settings.DB_NAME,
         "user": settings.DB_USER,
-        "password": settings.DB_PASSWORD
+        "password": settings.DB_PASSWORD,
     }
 
 
@@ -90,6 +90,6 @@ def get_log_level() -> int:
         "INFO": logging.INFO,
         "WARNING": logging.WARNING,
         "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL
+        "CRITICAL": logging.CRITICAL,
     }
     return level_map.get(settings.LOG_LEVEL.upper(), logging.INFO)

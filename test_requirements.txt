@@ -8,6 +8,7 @@ pytest-xdist==3.6.1
 coverage==7.7.0
 execnet==2.1.1
 iniconfig==2.1.0
+google-genai==1.12.1
 
 # Code quality tools
 black==25.1.0

@@ -37,12 +37,12 @@ class Cache:
         """
         try:
             value = self.cache[key]
-            if self.scraper and hasattr(self.scraper, 'metrics_manager'):
-                self.scraper.metrics_manager.increment('cache_hits')
+            if self.scraper and hasattr(self.scraper, "metrics_manager"):
+                self.scraper.metrics_manager.increment("cache_hits")
             return value
         except KeyError:
-            if self.scraper and hasattr(self.scraper, 'metrics_manager'):
-                self.scraper.metrics_manager.increment('cache_misses')
+            if self.scraper and hasattr(self.scraper, "metrics_manager"):
+                self.scraper.metrics_manager.increment("cache_misses")
             return None
 
     def set(self, key: str, value: str) -> None:

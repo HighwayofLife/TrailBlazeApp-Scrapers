@@ -26,7 +26,7 @@ class MetricsManager:
         "database_inserts",
         "database_updates",
         "cache_hits",
-        "cache_misses"
+        "cache_misses",
     ]
 
     def __init__(self, source_name: str) -> None:
@@ -55,7 +55,7 @@ class MetricsManager:
             self.metrics[metric_name] = 0
             self.logger.warning(
                 f"Created new metric '{metric_name}' that wasn't in standard metrics",
-                ":warning:"
+                ":warning:",
             )
 
         self.metrics[metric_name] += value
@@ -74,7 +74,7 @@ class MetricsManager:
         if metric_name not in self.metrics:
             self.logger.warning(
                 f"Created new metric '{metric_name}' that wasn't in standard metrics",
-                ":warning:"
+                ":warning:",
             )
 
         self.metrics[metric_name] = value
@@ -105,7 +105,7 @@ class MetricsManager:
             "raw_event_rows",
             "initial_events",
             "final_events",
-            "multi_day_events"
+            "multi_day_events",
         ]
         for metric in event_metrics:
             self.metrics[metric] = 0
@@ -142,15 +142,21 @@ class MetricsManager:
                 f"initial_events ({self.metrics['initial_events']}) - This shouldn't happen."
             )
         elif self.metrics["raw_event_rows"] > self.metrics["initial_events"]:
-             # Log a warning instead of an error if rows were skipped (e.g. no ride_id)
-            skipped_rows = self.metrics["raw_event_rows"] - self.metrics["initial_events"]
+            # Log a warning instead of an error if rows were skipped (e.g. no ride_id)
+            skipped_rows = (
+                self.metrics["raw_event_rows"] - self.metrics["initial_events"]
+            )
             if skipped_rows > 0:
-                self.logger.warning(f"Potential discrepancy: {skipped_rows} raw rows might have been skipped before becoming initial events (e.g., missing ride_id).")
+                self.logger.warning(
+                    f"Potential discrepancy: {skipped_rows} raw rows might have been skipped before becoming initial events (e.g., missing ride_id)."
+                )
 
         # Check if database operations match final events
         # Allow for potential discrepancies if validation skips events
         final_events_count = self.metrics.get("final_events", 0)
-        db_ops_count = self.metrics.get("database_inserts", 0) + self.metrics.get("database_updates", 0)
+        db_ops_count = self.metrics.get("database_inserts", 0) + self.metrics.get(
+            "database_updates", 0
+        )
         if db_ops_count > final_events_count:
             validation_errors.append(
                 f"Database discrepancy: database_inserts ({self.metrics.get('database_inserts', 0)}) + "
@@ -160,7 +166,9 @@ class MetricsManager:
         elif db_ops_count < final_events_count:
             skipped_db_ops = final_events_count - db_ops_count
             if skipped_db_ops > 0:
-                self.logger.warning(f"Potential discrepancy: {skipped_db_ops} final events might have been skipped before DB operation (e.g., validation errors).")
+                self.logger.warning(
+                    f"Potential discrepancy: {skipped_db_ops} final events might have been skipped before DB operation (e.g., validation errors)."
+                )
 
         return validation_errors
 
@@ -172,26 +180,70 @@ class MetricsManager:
             include_validation (bool): Whether to include validation checks (default: True)
         """
         # Header
-        print(f"\n{Fore.CYAN}{Style.BRIGHT}" +
-              emojize(f":rocket: Scraping Summary for {self.source_name} :rocket:", language='alias') +
-              f"{Style.RESET_ALL}")
+        print(
+            f"\n{Fore.CYAN}{Style.BRIGHT}"
+            + emojize(
+                f":rocket: Scraping Summary for {self.source_name} :rocket:",
+                language="alias",
+            )
+            + f"{Style.RESET_ALL}"
+        )
 
         # Event metrics
         print(f"{Fore.BLUE}{Style.BRIGHT}Event Metrics:{Style.RESET_ALL}")
-        print(emojize(f":scroll: Raw Event Rows Found: {self.metrics['raw_event_rows']}", language='alias'))
-        print(emojize(f":calendar: Initial Events Extracted: {self.metrics['initial_events']}", language='alias'))
-        print(emojize(f":sparkles: Final Events (Consolidated): {self.metrics['final_events']}", language='alias'))
-        print(emojize(f":date: Multi-Day Events: {self.metrics['multi_day_events']}", language='alias'))
+        print(
+            emojize(
+                f":scroll: Raw Event Rows Found: {self.metrics['raw_event_rows']}",
+                language="alias",
+            )
+        )
+        print(
+            emojize(
+                f":calendar: Initial Events Extracted: {self.metrics['initial_events']}",
+                language="alias",
+            )
+        )
+        print(
+            emojize(
+                f":sparkles: Final Events (Consolidated): {self.metrics['final_events']}",
+                language="alias",
+            )
+        )
+        print(
+            emojize(
+                f":date: Multi-Day Events: {self.metrics['multi_day_events']}",
+                language="alias",
+            )
+        )
 
         # Database metrics
         print(f"\n{Fore.BLUE}{Style.BRIGHT}Database Metrics:{Style.RESET_ALL}")
-        print(emojize(f":floppy_disk: Database Inserts: {self.metrics['database_inserts']}", language='alias'))
-        print(emojize(f":arrows_counterclockwise: Database Updates: {self.metrics['database_updates']}", language='alias'))
+        print(
+            emojize(
+                f":floppy_disk: Database Inserts: {self.metrics['database_inserts']}",
+                language="alias",
+            )
+        )
+        print(
+            emojize(
+                f":arrows_counterclockwise: Database Updates: {self.metrics['database_updates']}",
+                language="alias",
+            )
+        )
 
         # Cache metrics
         print(f"\n{Fore.BLUE}{Style.BRIGHT}Cache Metrics:{Style.RESET_ALL}")
-        print(emojize(f":white_check_mark: Cache Hits: {self.metrics['cache_hits']}", language='alias'))
-        print(emojize(f":x: Cache Misses: {self.metrics['cache_misses']}", language='alias'))
+        print(
+            emojize(
+                f":white_check_mark: Cache Hits: {self.metrics['cache_hits']}",
+                language="alias",
+            )
+        )
+        print(
+            emojize(
+                f":x: Cache Misses: {self.metrics['cache_misses']}", language="alias"
+            )
+        )
 
         # Any custom metrics
         custom_metrics = [m for m in self.metrics if m not in self.STANDARD_METRICS]
@@ -204,13 +256,22 @@ class MetricsManager:
         if include_validation:
             validation_errors = self.validate_metrics()
             if not validation_errors:
-                print(f"\n{Fore.GREEN}{Style.BRIGHT}" +
-                      emojize(":white_check_mark: All counts are valid!", language='alias') +
-                      f"{Style.RESET_ALL}")
+                print(
+                    f"\n{Fore.GREEN}{Style.BRIGHT}"
+                    + emojize(
+                        ":white_check_mark: All counts are valid!", language="alias"
+                    )
+                    + f"{Style.RESET_ALL}"
+                )
             else:
                 print(f"\n{Fore.RED}{Style.BRIGHT}Validation Errors:{Style.RESET_ALL}")
                 for error in validation_errors:
-                    print(emojize(f":warning: {Fore.YELLOW}{error}{Style.RESET_ALL}", language='alias'))
+                    print(
+                        emojize(
+                            f":warning: {Fore.YELLOW}{error}{Style.RESET_ALL}",
+                            language="alias",
+                        )
+                    )
 
     def get_all_metrics(self) -> Dict[str, int]:
         """

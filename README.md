@@ -9,6 +9,7 @@ TrailBlazeApp-Scrapers is a modular, extensible framework for scraping and proce
 - **Metrics:** Tracks records read, inserted, updated, and more.
 - **Database Integration:** Uses SQLAlchemy ORM for robust, maintainable database operations.
 - **Validation:** Optionally validates that scraped data matches what is stored in the database.
+- **AI-Powered Data Extraction:** Uses Google Gemini to extract structured data from complex HTML.
 - **Test Suite:** Comprehensive unit and integration tests.
 - **Extensible:** Designed for easy addition of new scrapers and data sources.
 
@@ -47,7 +48,27 @@ Other useful options:
 - `--sample-file <path>` : Specify a custom sample HTML file.
 - `--url <url>` : Override the default scraping URL.
 
-### 4. View Metrics
+### 4. AI-Powered Data Extraction
+
+The application uses Google's Gemini models to extract structured data from complex HTML snippets. To use this feature:
+
+1. Set up your Google Gemini API key in the `.env` file:
+   ```
+   LLM_API_KEY="your_api_key_here"
+   MODEL_ID="gemini-2.0-flash-001" # Or another available Gemini model
+   ```
+
+2. Use the `GeminiUtility` class in your scrapers:
+   ```python
+   from app.gemini_utility import GeminiUtility
+
+   # Extract address information from HTML
+   address_data = GeminiUtility.extract_address_from_html(html_snippet)
+   ```
+
+The utility handles retries, error conditions, and JSON parsing automatically.
+
+### 5. View Metrics
 
 At the end of each run, metrics are displayed, including:
 - Number of records read from HTML

@@ -25,40 +25,47 @@ logger = get_logger(__name__).logger
 # Models for MCP Protocol
 class QueryRequest(BaseModel):
     """Model for a SQL query request."""
+
     query: str = Field(..., description="SQL query to execute")
     parameters: Optional[Dict[str, Any]] = Field(None, description="Query parameters")
 
 
 class QueryResponse(BaseModel):
     """Model for a SQL query response."""
+
     columns: List[str]
     rows: List[List[Any]]
 
 
 class TablesRequest(BaseModel):
     """Model for a request to list database tables."""
+
     schema: Optional[str] = Field(None, description="Database schema")
 
 
 class TableInfo(BaseModel):
     """Model for table information."""
+
     name: str
     schema: str
 
 
 class TablesResponse(BaseModel):
     """Model for a response listing database tables."""
+
     tables: List[TableInfo]
 
 
 class SchemaRequest(BaseModel):
     """Model for a request to get table schema."""
+
     table: str
     schema: Optional[str] = Field(None, description="Database schema")
 
 
 class ColumnInfo(BaseModel):
     """Model for column information."""
+
     name: str
     type: str
     nullable: bool
@@ -66,6 +73,7 @@ class ColumnInfo(BaseModel):
 
 class SchemaResponse(BaseModel):
     """Model for a response with table schema information."""
+
     columns: List[ColumnInfo]
 
 
@@ -102,8 +110,19 @@ class PostgreSQLService:
                     columns = list(result.keys())
                     rows = [list(row) for row in result.fetchall()]
                     # Convert any non-serializable types to strings (if needed, though SQLAlchemy often handles this)
-                    rows = [[str(cell) if not isinstance(cell, (int, float, str, bool, type(None)))
-                            else cell for cell in row] for row in rows]
+                    rows = [
+                        [
+                            (
+                                str(cell)
+                                if not isinstance(
+                                    cell, (int, float, str, bool, type(None))
+                                )
+                                else cell
+                            )
+                            for cell in row
+                        ]
+                        for row in rows
+                    ]
                     return columns, rows
                 return [], []
         except Exception as e:
@@ -131,7 +150,7 @@ class PostgreSQLService:
         params = {}
         if schema:
             query += " AND table_schema = %(schema)s"
-            params['schema'] = schema
+            params["schema"] = schema
         else:
             query += " AND table_schema NOT IN ('pg_catalog', 'information_schema')"
 
@@ -157,18 +176,14 @@ class PostgreSQLService:
         WHERE table_name = %(table)s
         """
 
-        params = {'table': table}
+        params = {"table": table}
         if schema:
             query += " AND table_schema = %(schema)s"
-            params['schema'] = schema
+            params["schema"] = schema
 
         columns, rows = await self.execute_query(query, params)
         return [
-            {
-                "name": row[0],
-                "type": row[1],
-                "nullable": row[2].lower() == 'yes'
-            }
+            {"name": row[0], "type": row[1], "nullable": row[2].lower() == "yes"}
             for row in rows
         ]
 
@@ -195,7 +210,7 @@ app = FastAPI(
     title="TrailBlazeApp PostgreSQL MCP Server",
     description="MCP server for PostgreSQL database integration",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
@@ -226,7 +241,9 @@ async def execute_query(
         Query results with columns and rows
     """
     try:
-        columns, rows = await db_service.execute_query(request.query, request.parameters)
+        columns, rows = await db_service.execute_query(
+            request.query, request.parameters
+        )
         return QueryResponse(columns=columns, rows=rows)
     except Exception as e:
         logger.error(f"Error executing query: {e}")

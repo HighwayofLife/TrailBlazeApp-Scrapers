@@ -51,7 +51,9 @@ class BaseScraper(abc.ABC):
             HTMLDownloadError: If HTML content cannot be downloaded
             DataExtractionError: If data cannot be extracted from HTML
         """
-        self.logging_manager.info(f"Starting scraping process for URL: {url}", ":rocket:")
+        self.logging_manager.info(
+            f"Starting scraping process for URL: {url}", ":rocket:"
+        )
         self.metrics_manager.reset_event_metrics()
         # Concrete implementations should call get_html, parse_html, and display_metrics
 
@@ -91,12 +93,14 @@ class BaseScraper(abc.ABC):
         key = f"html_content_{url}"
         cached_html = self.cache.get(key)
         if cached_html:
-            self.metrics_manager.increment('cache_hits')
+            self.metrics_manager.increment("cache_hits")
             self.logging_manager.info(f"Cache hit for URL: {url}", emoji=":rocket:")
             return cached_html
         else:
-            self.metrics_manager.increment('cache_misses')
-            self.logging_manager.info(f"Cache miss for URL: {url}, fetching...", emoji=":hourglass:")
+            self.metrics_manager.increment("cache_misses")
+            self.logging_manager.info(
+                f"Cache miss for URL: {url}, fetching...", emoji=":hourglass:"
+            )
             try:
                 response = requests.get(url, timeout=30)
                 response.raise_for_status()
@@ -107,9 +111,13 @@ class BaseScraper(abc.ABC):
 
                 return html_content
             except requests.RequestException as e:
-                self.logging_manager.error(f"Failed to fetch HTML from URL: {url}. Error: {str(e)}", ":x:")
-                self.metrics_manager.increment('html_download_errors')
-                raise HTMLDownloadError(f"Failed to download HTML from {url}: {str(e)}") from e
+                self.logging_manager.error(
+                    f"Failed to fetch HTML from URL: {url}. Error: {str(e)}", ":x:"
+                )
+                self.metrics_manager.increment("html_download_errors")
+                raise HTMLDownloadError(
+                    f"Failed to download HTML from {url}: {str(e)}"
+                ) from e
 
     def parse_html(self, html_content: str) -> BeautifulSoup:
         """
@@ -125,18 +133,22 @@ class BaseScraper(abc.ABC):
             DataExtractionError: If HTML content cannot be parsed
         """
         try:
-            self.logging_manager.debug("Parsing HTML content with BeautifulSoup", ":mag:")
-            soup = BeautifulSoup(html_content, 'html.parser')
+            self.logging_manager.debug(
+                "Parsing HTML content with BeautifulSoup", ":mag:"
+            )
+            soup = BeautifulSoup(html_content, "html.parser")
 
             # Find all calendar rows
             calendar_rows = soup.find_all(class_="calendarRow")
             self.metrics_manager.set("raw_event_rows", len(calendar_rows))
-            self.logging_manager.info(f"Found {len(calendar_rows)} calendar rows", ":scroll:")
+            self.logging_manager.info(
+                f"Found {len(calendar_rows)} calendar rows", ":scroll:"
+            )
 
             return soup
         except (ValidationError, TypeError, ValueError) as e:
             self.logging_manager.error(f"Failed to parse HTML content: {str(e)}", ":x:")
-            self.metrics_manager.increment('html_parsing_errors')
+            self.metrics_manager.increment("html_parsing_errors")
             raise DataExtractionError(f"Failed to parse HTML content: {str(e)}") from e
 
     def _consolidate_events(self, all_events: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -149,7 +161,9 @@ class BaseScraper(abc.ABC):
         Returns:
             Dict[str, Any]: Dictionary of consolidated events, keyed by ride_id
         """
-        self.logging_manager.info(f"Consolidating {len(all_events)} events", ":card_index_dividers:")
+        self.logging_manager.info(
+            f"Consolidating {len(all_events)} events", ":card_index_dividers:"
+        )
         self.metrics_manager.set("initial_events", len(all_events))
 
         consolidated = {}
@@ -158,8 +172,10 @@ class BaseScraper(abc.ABC):
         for event in all_events:
             ride_id = event.get("ride_id")
             if not ride_id:
-                self.logging_manager.warning("Event without ride_id found, skipping", ":warning:")
-                self.metrics_manager.increment('events_without_ride_id')
+                self.logging_manager.warning(
+                    "Event without ride_id found, skipping", ":warning:"
+                )
+                self.metrics_manager.increment("events_without_ride_id")
                 continue
 
             if ride_id not in consolidated:
@@ -172,12 +188,12 @@ class BaseScraper(abc.ABC):
 
                 # Initialize tracking for this ride_id
                 if ride_id not in multi_day_events:
-                    multi_day_events[ride_id] = {
-                        "days": set([event.get("date_start")])
-                    }
+                    multi_day_events[ride_id] = {"days": set([event.get("date_start")])}
             else:
                 # This is a multi-day event that needs consolidation
-                self.logging_manager.debug(f"Found multi-day event with ride_id: {ride_id}", ":date:")
+                self.logging_manager.debug(
+                    f"Found multi-day event with ride_id: {ride_id}", ":date:"
+                )
 
                 # Track all unique dates for this event
                 if event.get("date_start"):
@@ -185,14 +201,17 @@ class BaseScraper(abc.ABC):
 
                 # Merge the events (implementation details would depend on specific requirements)
                 # For example, you might want to combine distances, update end date, etc.
-                if 'distances' in event and 'distances' in consolidated[ride_id]:
-                    consolidated[ride_id]['distances'].extend(event['distances'])
+                if "distances" in event and "distances" in consolidated[ride_id]:
+                    consolidated[ride_id]["distances"].extend(event["distances"])
 
         # Update multi-day flags for all consolidated events
         multi_day_count = 0
         for ride_id, event in consolidated.items():
             # Check if it's a multi-day event based on collected dates
-            if ride_id in multi_day_events and len(multi_day_events[ride_id]["days"]) > 1:
+            if (
+                ride_id in multi_day_events
+                and len(multi_day_events[ride_id]["days"]) > 1
+            ):
                 event["is_multi_day_event"] = True
 
                 # Update date_start and date_end based on collected dates
@@ -211,24 +230,35 @@ class BaseScraper(abc.ABC):
                         if event["ride_days"] >= 3:
                             event["is_pioneer_ride"] = True
                     except ValueError:
-                        self.logging_manager.warning(f"Could not parse dates for ride {ride_id} to calculate ride_days.", ":warning:")
-                        event["ride_days"] = len(days) # Fallback to number of distinct dates
+                        self.logging_manager.warning(
+                            f"Could not parse dates for ride {ride_id} to calculate ride_days.",
+                            ":warning:",
+                        )
+                        event["ride_days"] = len(
+                            days
+                        )  # Fallback to number of distinct dates
 
                 multi_day_count += 1
                 self.metrics_manager.increment("multi_day_events")
-                self.logging_manager.debug(f"Marked event {ride_id} as multi-day with {event.get('ride_days', 'unknown')} days")  # Use .get for safety
+                self.logging_manager.debug(
+                    f"Marked event {ride_id} as multi-day with {event.get('ride_days', 'unknown')} days"
+                )  # Use .get for safety
 
         self.logging_manager.info(
             f"Consolidated to {len(consolidated)} events ({multi_day_count} multi-day events)",
-            ":sparkles:"
+            ":sparkles:",
         )
 
-        self.metrics_manager.set('events_consolidated', len(consolidated))
-        self.logging_manager.info(f"Consolidated {len(consolidated)} events.", emoji=":check_mark_button:")
+        self.metrics_manager.set("events_consolidated", len(consolidated))
+        self.logging_manager.info(
+            f"Consolidated {len(consolidated)} events.", emoji=":check_mark_button:"
+        )
 
         return consolidated
 
-    def create_final_output(self, consolidated_events: Dict[str, Any]) -> Dict[str, Any]:
+    def create_final_output(
+        self, consolidated_events: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Format consolidated events into final output structure.
 
@@ -257,13 +287,21 @@ class BaseScraper(abc.ABC):
                 # Add to final output
                 final_output[filename] = validated_event
             else:
-                self.logging_manager.warning(f"Skipping invalid event with ride_id: {ride_id}", ":warning:")
-                self.metrics_manager.increment('invalid_events_skipped')
+                self.logging_manager.warning(
+                    f"Skipping invalid event with ride_id: {ride_id}", ":warning:"
+                )
+                self.metrics_manager.increment("invalid_events_skipped")
 
-        self.logging_manager.info(f"Final output created with {len(final_output)} events", ":white_check_mark:")
-        self.metrics_manager.set('final_events', len(final_output))
-        self.metrics_manager.set('validated_events', validated_count)
-        self.logging_manager.info(f"Created final output for {len(final_output)} events.", emoji=":file_folder:")
+        self.logging_manager.info(
+            f"Final output created with {len(final_output)} events",
+            ":white_check_mark:",
+        )
+        self.metrics_manager.set("final_events", len(final_output))
+        self.metrics_manager.set("validated_events", validated_count)
+        self.logging_manager.info(
+            f"Created final output for {len(final_output)} events.",
+            emoji=":file_folder:",
+        )
 
         return final_output
 
@@ -295,7 +333,9 @@ class BaseScraper(abc.ABC):
         """
         return self._consolidate_events(all_events)
 
-    def validate_event_data(self, event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def validate_event_data(
+        self, event_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
         Validate event data using the Pydantic model.
 
@@ -307,16 +347,15 @@ class BaseScraper(abc.ABC):
         """
         try:
             # Ensure source is set
-            if 'source' not in event_data:
-                event_data['source'] = self.source_name
+            if "source" not in event_data:
+                event_data["source"] = self.source_name
 
             # Validate with Pydantic model
             validated_data = EventDataModel(**event_data).dict()
             return validated_data
         except (ValidationError, TypeError, ValueError) as e:
             self.logging_manager.warning(
-                f"Validation error for event: {str(e)}",
-                emoji=":warning:"
+                f"Validation error for event: {str(e)}", emoji=":warning:"
             )
-            self.metrics_manager.increment('validation_errors')
+            self.metrics_manager.increment("validation_errors")
             return None

@@ -26,7 +26,7 @@ def parse_date(date_string: str) -> datetime:
     date_string = date_string.strip()
 
     # If the input is already in YYYY-MM-DD format, just parse it directly
-    if re.match(r'^\d{4}-\d{2}-\d{2}$', date_string):
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", date_string):
         return datetime.strptime(date_string, "%Y-%m-%d")
 
     # Try to parse the date string using dateutil.parser, should handle most cases
@@ -53,12 +53,17 @@ def parse_time(time_string: str) -> datetime:
     time_string = time_string.strip().upper()
 
     try:
-        return parser.parse(time_string, default=datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
+        return parser.parse(
+            time_string,
+            default=datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),
+        )
     except ValueError as e:
         raise ValueError(f"Could not parse time string: {time_string}") from e
 
 
-def extract_city_state_country(location_string: str) -> Tuple[Optional[str], Optional[str], str]:
+def extract_city_state_country(
+    location_string: str,
+) -> Tuple[Optional[str], Optional[str], str]:
     """
     Extract City, State/Province, and Country from a location string.
     Handles various formats like "City, ST", "Venue, City, ST", "Address, City ST".
@@ -74,21 +79,39 @@ def extract_city_state_country(location_string: str) -> Tuple[Optional[str], Opt
         return None, None, "USA"
 
     # Basic cleaning - remove leading/trailing whitespace and commas
-    cleaned = location_string.strip().strip(',').strip()
+    cleaned = location_string.strip().strip(",").strip()
     # Remove map link text variations if present
-    cleaned = re.sub(r'Click Here for Directions via Google Maps.*', '', cleaned, flags=re.IGNORECASE).strip()
-    cleaned = re.sub(r'via Google Maps.*', '', cleaned, flags=re.IGNORECASE).strip()
-    cleaned = re.sub(r'Directions via Google Maps.*', '', cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(
+        r"Click Here for Directions via Google Maps.*", "", cleaned, flags=re.IGNORECASE
+    ).strip()
+    cleaned = re.sub(r"via Google Maps.*", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(
+        r"Directions via Google Maps.*", "", cleaned, flags=re.IGNORECASE
+    ).strip()
 
     # List of Canadian provinces/territories (add more if needed)
-    canadian_provinces = {"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"}
+    canadian_provinces = {
+        "AB",
+        "BC",
+        "MB",
+        "NB",
+        "NL",
+        "NS",
+        "NT",
+        "NU",
+        "ON",
+        "PE",
+        "QC",
+        "SK",
+        "YT",
+    }
 
     city: Optional[str] = None
     state: Optional[str] = None
     country: str = "USA"  # Default to USA
 
     # Split by comma, removing empty parts
-    parts = [part.strip() for part in cleaned.split(',') if part.strip()]
+    parts = [part.strip() for part in cleaned.split(",") if part.strip()]
 
     if len(parts) >= 3:
         # Assume format like: Venue/Address, City, State/Province [, Country]?
@@ -97,8 +120,8 @@ def extract_city_state_country(location_string: str) -> Tuple[Optional[str], Opt
         city = parts[-2]
 
         # Check if state_part contains country info (e.g., "MB Canada")
-        state_split = state_part.rsplit(' ', 1)
-        if len(state_split) == 2 and state_split[1].lower() == 'canada':
+        state_split = state_part.rsplit(" ", 1)
+        if len(state_split) == 2 and state_split[1].lower() == "canada":
             state = state_split[0]
             country = "Canada"
         else:
@@ -113,45 +136,53 @@ def extract_city_state_country(location_string: str) -> Tuple[Optional[str], Opt
         second_part = parts[1]
 
         # Try splitting the second part by the last space
-        city_state_split = second_part.rsplit(' ', 1)
+        city_state_split = second_part.rsplit(" ", 1)
 
         if len(city_state_split) == 2:
             # Likely "Address/Venue, City State" (e.g., "52 San Tomaso Rd, Alamogordo NM")
             potential_city = city_state_split[0]
             potential_state = city_state_split[1]
             # Basic validation for state (e.g., 2 letters or Canadian province)
-            if (len(potential_state) == 2 and potential_state.isalpha()) or potential_state in canadian_provinces:
+            if (
+                len(potential_state) == 2 and potential_state.isalpha()
+            ) or potential_state in canadian_provinces:
                 city = potential_city
                 state = potential_state
                 if state in canadian_provinces:
                     country = "Canada"
             else:
-                 # Didn't look like "City State", maybe it's "City, State" format?
+                # Didn't look like "City State", maybe it's "City, State" format?
                 city = first_part
-                state = second_part # Treat full second part as state initially
-                if not ((len(state) == 2 and state.isalpha()) or state in canadian_provinces):
-                    state = None # Invalid state format
+                state = second_part  # Treat full second part as state initially
+                if not (
+                    (len(state) == 2 and state.isalpha()) or state in canadian_provinces
+                ):
+                    state = None  # Invalid state format
                 elif state in canadian_provinces:
                     country = "Canada"
 
-        elif len(city_state_split) == 1: # rsplit found no space in second_part
+        elif len(city_state_split) == 1:  # rsplit found no space in second_part
             # Likely "City, State" format (e.g., "Asheville, NC")
             city = first_part
             state = second_part
-            if not ((len(state) == 2 and state.isalpha()) or state in canadian_provinces):
-                state = None # Invalid state format
+            if not (
+                (len(state) == 2 and state.isalpha()) or state in canadian_provinces
+            ):
+                state = None  # Invalid state format
             elif state in canadian_provinces:
                 country = "Canada"
 
     elif len(parts) == 1:
         # Only one part, could be City, State, "City State", etc.
         # Try splitting by last space
-        city_state_split = parts[0].rsplit(' ', 1)
+        city_state_split = parts[0].rsplit(" ", 1)
         if len(city_state_split) == 2:
             # Potentially "City State" format
             potential_city = city_state_split[0]
             potential_state = city_state_split[1]
-            if (len(potential_state) == 2 and potential_state.isalpha()) or potential_state in canadian_provinces:
+            if (
+                len(potential_state) == 2 and potential_state.isalpha()
+            ) or potential_state in canadian_provinces:
                 city = potential_city
                 state = potential_state
                 if state in canadian_provinces:
@@ -161,7 +192,9 @@ def extract_city_state_country(location_string: str) -> Tuple[Optional[str], Opt
                 city = parts[0]
         else:
             # No space, could be just City or just State
-            if (len(parts[0]) == 2 and parts[0].isalpha()) or parts[0] in canadian_provinces:
+            if (len(parts[0]) == 2 and parts[0].isalpha()) or parts[
+                0
+            ] in canadian_provinces:
                 state = parts[0]
                 if state in canadian_provinces:
                     country = "Canada"
@@ -194,7 +227,7 @@ def generate_file_name(ride_id: str, source: str) -> str:
         str: A standardized filename
     """
     # Standardize: lowercase and replace hyphens with underscores
-    ride_id_clean = ride_id.lower().replace('-', '_')
+    ride_id_clean = ride_id.lower().replace("-", "_")
     source_clean = source.lower()
 
     return f"{source_clean}_{ride_id_clean}.json"

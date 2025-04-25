@@ -1,18 +1,28 @@
 """SQLAlchemy ORM models for the TrailBlazeApp-Scrapers project."""
 
 from sqlalchemy import (
-    Column, Integer, String, Boolean, Date, Float, Text, JSON, UniqueConstraint, TIMESTAMP, func
+    Column,
+    Integer,
+    String,
+    Boolean,
+    Date,
+    Float,
+    Text,
+    JSON,
+    UniqueConstraint,
+    TIMESTAMP,
+    func,
 )
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
+
 class Event(Base):
     """SQLAlchemy ORM model for the events table."""
+
     __tablename__ = "events"
-    __table_args__ = (
-        UniqueConstraint("source", "ride_id", name="uq_source_ride_id"),
-    )
+    __table_args__ = (UniqueConstraint("source", "ride_id", name="uq_source_ride_id"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)
@@ -43,5 +53,7 @@ class Event(Base):
     control_judges = Column(JSON, nullable=True)
     distances = Column(JSON, nullable=True)
     directions = Column(Text, nullable=True)
-    created_at = Column(TIMESTAMP, server_default=func.now()) #pylint: disable=E1102
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now()) #pylint: disable=E1102
+    created_at = Column(TIMESTAMP, server_default=func.now())  # pylint: disable=E1102
+    updated_at = Column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now()
+    )  # pylint: disable=E1102
