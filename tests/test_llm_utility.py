@@ -64,25 +64,38 @@ def test_extract_address_success(mock_post, mock_get_settings, mock_config):
 # Test case 2: Handling LLM API errors (non-200 status code)
 
 
-@patch('app.llm_utility.get_settings')
 @patch('app.llm_utility.requests.post')
-def test_extract_address_api_error(mock_post, mock_get_settings, mock_config):
-    # Configure the mock_get_settings to return our mock_config
+@patch('app.llm_utility.get_settings')
+def test_extract_address_api_error(mock_get_settings, mock_post):
+    # Create a direct mock settings object (not using mock_config fixture)
+    mock_config = MagicMock()
     mock_get_settings.return_value = mock_config
 
+    # Configure mock settings explicitly
+    mock_config.LLM_API_ENDPOINT = "http://fake-llm-api.com"
+    mock_config.LLM_API_KEY = "fake_api_key"
+    mock_config.LLM_MAX_RETRIES = 1  # Use 1 instead of 0 to ensure the loop runs once
+    mock_config.LLM_REQUEST_TIMEOUT_SECONDS = 10
+
+    # Create a response with an error
     mock_response = MagicMock()
     mock_response.status_code = 500
     mock_response.text = "Internal Server Error"
-    mock_post.side_effect = requests.exceptions.HTTPError("500 Server Error")
+
+    # Important: Set up the mocks in the right order
+    # The post call should return our mock_response
     mock_post.return_value = mock_response
+    # When raise_for_status is called on the response, it should raise HTTPError
     mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error")
 
     html_content = "<div>Some HTML content</div>"
     llm_utility = LLM_Utility()
 
-    with pytest.raises(LLMAPIError) as excinfo:
+    # The method should raise LLMAPIError after handling the HTTPError
+    with pytest.raises(LLMAPIError):
         llm_utility.extract_address_from_html(html_content)
 
+    # Assert that post was called once
     mock_post.assert_called_once()
 
 # Test case 3: Handling timeouts and connection issues
@@ -93,6 +106,9 @@ def test_extract_address_api_error(mock_post, mock_get_settings, mock_config):
 def test_extract_address_request_exception(mock_post, mock_get_settings, mock_config):
     # Configure the mock_get_settings to return our mock_config
     mock_get_settings.return_value = mock_config
+
+    # Set to at least 1 to ensure the loop runs
+    mock_config.LLM_MAX_RETRIES = 1
 
     mock_post.side_effect = requests.exceptions.RequestException("Connection error")
 
@@ -166,6 +182,9 @@ def test_extract_address_retry_logic(mock_post, mock_sleep, mock_get_settings, m
     # Configure the mock_get_settings to return our mock_config
     mock_get_settings.return_value = mock_config
 
+    # Set the max retries to 3 to match our side_effect array
+    mock_config.LLM_MAX_RETRIES = 3
+
     # Create a proper response object for the successful case
     success_response = MagicMock()
     success_response.status_code = 200
@@ -202,4 +221,5 @@ def test_extract_address_retry_logic(mock_post, mock_sleep, mock_get_settings, m
     assert mock_post.call_count == 3
     # Expect 2 sleeps for 2 retries
     assert mock_sleep.call_count == 2
-    mock_sleep.assert_called_with(mock_config.RETRY_DELAY_SECONDS)  # Access attribute from mock settings instance
+    # Make sure sleep was called with the expected delay time
+    mock_sleep.assert_called_with(mock_config.LLM_RETRY_DELAY_SECONDS)  # Access attribute from mock settings instance
