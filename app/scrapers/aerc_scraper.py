@@ -281,7 +281,8 @@ class AERCScraper(BaseScraper):
                     html_snippet = str(row)
                     if html_snippet:
                         self.logging_manager.debug(f"Attempting LLM address extraction for ride {ride_id}", emoji=":robot:")
-                        llm_address_data = LLM_Utility.extract_address_from_html(html_snippet)
+                        llm_utility = LLM_Utility()
+                        llm_address_data = llm_utility.extract_address_from_html(html_snippet)
                         if llm_address_data:
                             self.logging_manager.info(f"LLM successfully extracted address data for ride {ride_id}", emoji=":white_check_mark:")
                             self.metrics_manager.increment("llm_address_extractions_success")
@@ -302,6 +303,9 @@ class AERCScraper(BaseScraper):
 
                 # Update event_data, prioritizing LLM results
                 event_data['address'] = llm_address_data.get('address') if llm_address_data else None
+                # Update location_name with the address if it's available from LLM
+                if llm_address_data and llm_address_data.get('address'):
+                    event_data['location_name'] = llm_address_data.get('address')
                 # Keep existing city/state if LLM doesn't provide one
                 event_data['city'] = (llm_address_data.get('city') if llm_address_data else None) or event_data.get('city')
                 event_data['state'] = (llm_address_data.get('state') if llm_address_data else None) or event_data.get('state')

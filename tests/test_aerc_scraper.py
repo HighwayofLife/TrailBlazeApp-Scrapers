@@ -349,24 +349,23 @@ def test_extract_event_data_with_llm(mock_llm_utility, scraper, inconsistent_add
 
 
 @patch('app.scrapers.aerc_scraper.LLM_Utility')
-@patch('app.logging_manager.LoggingManager')
-def test_extract_event_data_llm_api_error(mock_logging_manager_class, mock_llm_utility, scraper, inconsistent_address_html, mock_config):  # Added mock_config
-    mock_logging_manager_instance = mock_logging_manager_class.return_value  # Get the mock instance
-    mock_instance = mock_llm_utility.return_value
-    mock_instance.extract_address_from_html.side_effect = LLMAPIError("API error")
+def test_extract_event_data_llm_api_error(mock_llm_utility, scraper, inconsistent_address_html, mock_config):
+    # Patch the warning method directly on the scraper's logging_manager instance
+    with patch.object(scraper.logging_manager, 'warning') as mock_warning:
+        mock_instance = mock_llm_utility.return_value
+        mock_instance.extract_address_from_html.side_effect = LLMAPIError("API error")
 
-    html_content = f'<div>{inconsistent_address_html}</div>'
-    soup = BeautifulSoup(html_content, 'html.parser')
+        html_content = f'<div>{inconsistent_address_html}</div>'
+        soup = BeautifulSoup(html_content, 'html.parser')
 
-    events = scraper.extract_event_data(soup)
+        events = scraper.extract_event_data(soup)
 
-    # Assert that LLM_Utility was called
-    mock_llm_utility.assert_called_once()
-    mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+        # Assert that LLM_Utility was called
+        mock_llm_utility.assert_called_once()
+        mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
 
-    # Assert that an error was logged using the mock instance
-    mock_logging_manager_instance.warning.assert_called_once()  # It's a warning in the scraper
-    assert "LLM address extraction failed for ride 67890: API error" in mock_logging_manager_instance.warning.call_args[0][0]  # Updated log message check and mock name
+        # Assert that an error was logged using the warning method on scraper.logging_manager
+        mock_warning.assert_any_call(f"LLM address extraction failed for ride 67890: API error", emoji=":x:")
 
     # Assert that the event data does NOT contain LLM results
     assert len(events) == 1
@@ -382,24 +381,23 @@ def test_extract_event_data_llm_api_error(mock_logging_manager_class, mock_llm_u
 
 
 @patch('app.scrapers.aerc_scraper.LLM_Utility')
-@patch('app.logging_manager.LoggingManager')
-def test_extract_event_data_llm_content_error(mock_logging_manager_class, mock_llm_utility, scraper, inconsistent_address_html, mock_config):  # Added mock_config
-    mock_logging_manager_instance = mock_logging_manager_class.return_value  # Get the mock instance
-    mock_instance = mock_llm_utility.return_value
-    mock_instance.extract_address_from_html.side_effect = LLMContentError("Content error")
+def test_extract_event_data_llm_content_error(mock_llm_utility, scraper, inconsistent_address_html, mock_config):
+    # Patch the warning method directly on the scraper's logging_manager instance
+    with patch.object(scraper.logging_manager, 'warning') as mock_warning:
+        mock_instance = mock_llm_utility.return_value
+        mock_instance.extract_address_from_html.side_effect = LLMContentError("Content error")
 
-    html_content = f'<div>{inconsistent_address_html}</div>'
-    soup = BeautifulSoup(html_content, 'html.parser')
+        html_content = f'<div>{inconsistent_address_html}</div>'
+        soup = BeautifulSoup(html_content, 'html.parser')
 
-    events = scraper.extract_event_data(soup)
+        events = scraper.extract_event_data(soup)
 
-    # Assert that LLM_Utility was called
-    mock_llm_utility.assert_called_once()
-    mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+        # Assert that LLM_Utility was called
+        mock_llm_utility.assert_called_once()
+        mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
 
-    # Assert that an error was logged using the mock instance
-    mock_logging_manager_instance.warning.assert_called_once()  # It's a warning in the scraper
-    assert "LLM address extraction failed for ride 67890: Content error" in mock_logging_manager_instance.warning.call_args[0][0]  # Updated log message check and mock name
+        # Assert that an error was logged using the warning method on scraper.logging_manager
+        mock_warning.assert_any_call(f"LLM address extraction failed for ride 67890: Content error", emoji=":x:")
 
     # Assert that the event data does NOT contain LLM results
     assert len(events) == 1
@@ -414,24 +412,23 @@ def test_extract_event_data_llm_content_error(mock_logging_manager_class, mock_l
 
 
 @patch('app.scrapers.aerc_scraper.LLM_Utility')
-@patch('app.logging_manager.LoggingManager')
-def test_extract_event_data_llm_json_parsing_error(mock_logging_manager_class, mock_llm_utility, scraper, inconsistent_address_html, mock_config):  # Added mock_config
-    mock_logging_manager_instance = mock_logging_manager_class.return_value  # Get the mock instance
-    mock_instance = mock_llm_utility.return_value
-    mock_instance.extract_address_from_html.side_effect = LLMJsonParsingError("JSON parsing error")
+def test_extract_event_data_llm_json_parsing_error(mock_llm_utility, scraper, inconsistent_address_html, mock_config):
+    # Patch the warning method directly on the scraper's logging_manager instance
+    with patch.object(scraper.logging_manager, 'warning') as mock_warning:
+        mock_instance = mock_llm_utility.return_value
+        mock_instance.extract_address_from_html.side_effect = LLMJsonParsingError("JSON parsing error")
 
-    html_content = f'<div>{inconsistent_address_html}</div>'
-    soup = BeautifulSoup(html_content, 'html.parser')
+        html_content = f'<div>{inconsistent_address_html}</div>'
+        soup = BeautifulSoup(html_content, 'html.parser')
 
-    events = scraper.extract_event_data(soup)
+        events = scraper.extract_event_data(soup)
 
-    # Assert that LLM_Utility was called
-    mock_llm_utility.assert_called_once()
-    mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
+        # Assert that LLM_Utility was called
+        mock_llm_utility.assert_called_once()
+        mock_instance.extract_address_from_html.assert_called_once_with(str(inconsistent_address_html))
 
-    # Assert that an error was logged using the mock instance
-    mock_logging_manager_instance.warning.assert_called_once()  # It's a warning in the scraper
-    assert "LLM address extraction failed for ride 67890: JSON parsing error" in mock_logging_manager_instance.warning.call_args[0][0]  # Updated log message check and mock name
+        # Assert that an error was logged using the warning method on scraper.logging_manager
+        mock_warning.assert_any_call(f"LLM address extraction failed for ride 67890: JSON parsing error", emoji=":x:")
 
     # Assert that the event data does NOT contain LLM results
     assert len(events) == 1
