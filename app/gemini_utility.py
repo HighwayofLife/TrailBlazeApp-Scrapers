@@ -6,6 +6,7 @@ import time
 from typing import Dict, Optional
 
 from google import genai
+from google.genai import types
 import requests
 from requests.exceptions import RequestException
 
@@ -80,21 +81,15 @@ JSON Output:
             logger.warning("LLM_API_KEY is not configured. Skipping Gemini extraction.")
             return None
 
-        # Get the model ID from configuration
-        model_id = config.MODEL_ID
-        if not model_id:
-            model_id = "gemini-2.0-flash-001"  # Default model
-            logger.info(f"MODEL_ID not specified, using default: {model_id}")
-
         # Construct the prompt for the model
         prompt = cls._construct_prompt(html_snippet)
 
         # Configure generation parameters
-        generation_config = {
-            "temperature": 0.2,
-            "max_output_tokens": 1024,
-            "top_p": 0.95,
-        }
+        generation_config = types.GenerateContentConfig(
+            temperature=0.2,
+            max_output_tokens=1024,
+            top_p=0.95,
+        )
 
         last_exception = None
 
@@ -104,13 +99,18 @@ JSON Output:
                 # Get client
                 client = cls._get_client()
 
-                # Get model
-                model = client.models.get(model_id)
+                # Set model ID from config
+                model_name = config.MODEL_ID  # Use the configured model ID directly
 
-                # Generate content
-                response = model.generate_content(
+                if not model_name:
+                    logger.warning("MODEL_ID is not configured. Using default model.")
+                    model_name = "gemini-2.0-flash-lite-001"
+
+                # Generate content directly via client.models service
+                response = client.models.generate_content(
+                    model=model_name,
                     contents=prompt,
-                    generation_config=generation_config
+                    config=generation_config
                 )
 
                 # Check for safety issues in the response
@@ -221,8 +221,8 @@ if __name__ == "__main__":
             "Skipping live Gemini test. Create/check .env file or set environment variables."
         )
     else:
-        model_id = settings.MODEL_ID or "gemini-2.0-flash-001"
-        print(f"--- Testing Gemini Utility with Model ID: {model_id} ---")
+        model_name = settings.MODEL_ID or "gemini-2.0-flash-001"
+        print(f"--- Testing Gemini Utility with Model Name: {model_name} ---")
 
         sample_html = """
         <div class="contact-info">
@@ -241,5 +241,6 @@ if __name__ == "__main__":
                 print("Failed to extract address data (returned None). Check logs.")
         except (LLMAPIError, LLMContentError, LLMJsonParsingError) as e:
             print(f"An error occurred during Gemini extraction: {e}")
-        except Exception as e:
-            print(f"An unexpected error occurred during test: {e}")
+        except (Exception) as e:
+            # Catch specific exceptions that might occur during API interactions
+            print(f"An error occurred during API interaction: {e}")
